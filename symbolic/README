@@ -1,6 +1,8 @@
 sys2minibex binary must be called with a .txt file that contains a problem.
 See example.txt file for the syntax. .txt file(s) containing objective
-functions and routh criterion are created. These files respect the minibex syntax,
-exept that the division sign "^(-1)" written by Ginac must be replaced by "/".
+functions and routh criterion are created. Then call the bash file 
+omega2u.sh with file created by sys2minibex to make them respect the 
+minibex syntax and replace the variable "omega^n" by "exp(ln(10)*n*u)"
+and get rid off the logarithmic dependance on omega of objective functions.
 
-sys2minibex.cpp calls needs Ginac library to be compiled.
+sys2minibex.cpp needs Ginac library to be compiled: http://www.ginac.de/ 
