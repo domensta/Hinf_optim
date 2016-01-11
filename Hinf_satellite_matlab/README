@@ -1,0 +1,2 @@
+Matlab model of augmented satellite and .m file that run Hinf and Hinfstruct optimization.
+mk_pond0 is used to create frequency template of constraints.
