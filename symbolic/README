@@ -1,0 +1,6 @@
+sys2minibex binary must be called with a .txt file that contains a problem.
+See example.txt file for the syntax. .txt file(s) containing objective
+functions and routh criterion are created. These files respect the minibex syntax,
+exept that the division sign "^(-1)" written by Ginac must be replaced by "/".
+
+sys2minibex.cpp calls needs Ginac library to be compiled.

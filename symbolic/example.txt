@@ -1,0 +1,18 @@
+#variables
+kp,ki,kd
+#define G
+1/(s*s+1.4*s+1)
+#define K
+kp+ki/s+kd*s/(1+s)
+#define W1
+(s+100)/(100*s+1)
+#define W2
+(10*s+1)/(s+10)
+#constraint Twz1
+W1/(1+G*K)
+#constraint Twz2
+W2*K/(1+G*K)
+#routh
+1/(1+G*K)
+
+
