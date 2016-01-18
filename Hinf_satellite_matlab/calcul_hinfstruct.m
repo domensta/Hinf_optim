@@ -1,4 +1,4 @@
-function [cor,sys]=calcul_hinf
+
 
 close all
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -25,7 +25,7 @@ sysaug=ltisys(a1,b1,c1,d1);
 %% hinfstruct synthesis
 
 % define PID controller, 'P', 'PI', 'PD' also possible
- options = hinfstructOptions('RandomStart',10, 'Display', 'off');
+ options = hinfstructOptions('RandomStart',1, 'Display', 'off');
 C0pid = ltiblock.pid('namePID', 'PID') ; %
 C0pid.Tf.Free=0;
 C0pid.Tf.Value=1;
@@ -38,7 +38,7 @@ C0pid.Kd.Maximum=10;
 
 % Cpid is tuned version of C0pid, gam is optimal Hinf norm
 [Cpid, GAM, info] = hinfstruct(ssaug, C0pid,options) ;
-bode(lft(Cpid,ss(a,b,c,d)));
+norm(lft(Cpid,ssaug,1,1),inf);
 
 %% hinf synthesis
 [syscor,gopt]=hinfsyn(sysaug,1,1,0.9,10,0.1);

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "src/ibex_SetIntervalReg.h"
+#include "src/polynomial.h"
 
 
 /*
@@ -230,12 +231,14 @@ double mid_point_eval(const optiw& str,list_elem *elem) { // sup omega
 }
 
 int main() {
-
+    string va[1];va[0] = "x";
+    polynomial poly("x^2+x",va,1);
+    poly.eval_bernstein(IntervalVector(1,Interval(5)));
     IntervalVector Iniprob(2,Interval(-10,10));
     IntervalVector Iniprob2(1,Interval(-0.1,0.1));
     // precision:
     double prec(0.01);
-    double preclwmin = 1.e-3;// dynamic initialization in loop
+    double preclwmin = 1.e-4;// dynamic initialization in loop
     double stop_criterion(0.1); // stop if distance between uplo and loup lower than stop_criterion
 
     // init boxes
@@ -246,36 +249,20 @@ int main() {
     //function definition
     Variable ki,kp,kd,w,u;
 
-    Interval ln10 = Interval(2.30258509298,2.30258509300);
+    Function Twz1("kp","ki","kd","u","((-33.7524*exp(ln(10)*4*u)+0.14399999999999999999*exp(ln(10)*2*u))^2+((33.75)*exp(ln(10)*5*u)-0.1464*exp(ln(10)*3*u))^2)*1/(((0.00366)*exp(ln(10)*u)*ki+0.0036*kp*exp(ln(10)*u)+33.75*exp(ln(10)*5*u)-(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u)-1.00006*kp*exp(ln(10)*3*u)-exp(ln(10)*3*u)*ki-0.1464*exp(ln(10)*3*u))^2+(-33.7524*exp(ln(10)*4*u)+0.0036*kd*exp(ln(10)*2*u)+0.00366*kp*exp(ln(10)*2*u)-kp*exp(ln(10)*4*u)-kd*exp(ln(10)*4*u)-0.0036*ki+1.00006*exp(ln(10)*2*u)*ki+0.14399999999999999999*exp(ln(10)*2*u))^2)+((-33.7524*exp(ln(10)*4*u)+0.14399999999999999999*exp(ln(10)*2*u))^2+((33.75)*exp(ln(10)*5*u)-0.1464*exp(ln(10)*3*u))^2)*1/(((0.00366)*exp(ln(10)*u)*ki+0.0036*kp*exp(ln(10)*u)+33.75*exp(ln(10)*5*u)-(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u)-1.00006*kp*exp(ln(10)*3*u)-exp(ln(10)*3*u)*ki-0.1464*exp(ln(10)*3*u))^2+(-33.7524*exp(ln(10)*4*u)+0.0036*kd*exp(ln(10)*2*u)+0.00366*kp*exp(ln(10)*2*u)-kp*exp(ln(10)*4*u)-kd*exp(ln(10)*4*u)-0.0036*ki+1.00006*exp(ln(10)*2*u)*ki+0.14399999999999999999*exp(ln(10)*2*u))^2)-((0.001248-3.162*exp(ln(10)*2*u))^2+0.0078960996*exp(ln(10)*2*u))*1/((-0.01248+exp(ln(10)*2*u))^2+0.024964*exp(ln(10)*2*u))");
+    Function Twz2("kp","ki","kd","u","1/((kd*exp(ln(10)*4*u)+kp*exp(ln(10)*4*u)-1.00006*exp(ln(10)*2*u)*ki-0.14399999999999999999*exp(ln(10)*2*u)+33.7524*exp(ln(10)*4*u)+0.0036*ki-0.00366*kp*exp(ln(10)*2*u)-0.0036*kd*exp(ln(10)*2*u))^2+(exp(ln(10)*3*u)*ki+0.1464*exp(ln(10)*3*u)-0.0036*kp*exp(ln(10)*u)-0.00366*exp(ln(10)*u)*ki-33.75*exp(ln(10)*5*u)+1.00006*kp*exp(ln(10)*3*u)+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u))^2)*(((0.14399999999999999999)*exp(ln(10)*2*u)-33.7524*exp(ln(10)*4*u))^2+(-0.1464*exp(ln(10)*3*u)+33.75*exp(ln(10)*5*u))^2)+1/((kd*exp(ln(10)*4*u)+kp*exp(ln(10)*4*u)-1.00006*exp(ln(10)*2*u)*ki-0.14399999999999999999*exp(ln(10)*2*u)+33.7524*exp(ln(10)*4*u)+0.0036*ki-0.00366*kp*exp(ln(10)*2*u)-0.0036*kd*exp(ln(10)*2*u))^2+(exp(ln(10)*3*u)*ki+0.1464*exp(ln(10)*3*u)-0.0036*kp*exp(ln(10)*u)-0.00366*exp(ln(10)*u)*ki-33.75*exp(ln(10)*5*u)+1.00006*kp*exp(ln(10)*3*u)+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u))^2)*(((10.0006)*exp(ln(10)*3*u)-0.036*exp(ln(10)*u))^2+(-0.0366*exp(ln(10)*2*u)+10*exp(ln(10)*4*u))^2)-((0.001248-3.162*exp(ln(10)*2*u))^2+0.0078960996*exp(ln(10)*2*u))*1/((0.024964)*exp(ln(10)*2*u)+(-0.01248+exp(ln(10)*2*u))^2)");
 
-    Function F1("kp","ki","kd","w","(w^2*(w^2 + 1.0)*(w^2 + 10000.0)*(25.0*w^4 - 1.0*w^2 + 25.0))/((10000.0*w^2 + 1.0)*(25.0*kd^2*w^4 + 25.0*kp^2*w^2 + 25.0*kp^2*w^4 - 1.0*ki*(50.0*kd*w^2 + 70.0*w^2 + 70.0*w^4) + ki^2*(25.0*w^2 + 25.0) + 120.0*kd*w^4 - 50.0*kd*w^6 + 50.0*kp*w^2 - 50.0*kp*w^6 + 25.0*w^2 + 24.0*w^4 + 24.0*w^6 + 25.0*w^8 + 50.0*kd*kp*w^4))");
-    Function F1uln("kp","ki","kd","u","ln10","(1.0*exp(ln10*2*u)*(exp(ln10*2*u) + 1.0)*(exp(ln10*2*u) + 10000.0)*(25.0*exp(4*ln10*u) - exp(ln10*2*u) + 25.0))/((10000.0*exp(ln10*2*u) + 1.0)*(25.0*exp(ln10*2*u) + 24.0*exp(4*ln10*u) + 25.0*exp(8*ln10*u) + 24.0*exp(6*ln10*u) + 120.0*kd*exp(4*ln10*u) - 70.0*ki*exp(ln10*2*u) - 70.0*ki*exp(4*ln10*u) + 50.0*kp*exp(ln10*2*u) - 50.0*kd*exp(6*ln10*u) - 50.0*kp*exp(6*ln10*u) + 25.0*kd^2*exp(4*ln10*u) + 25.0*ki^2*exp(ln10*2*u) + 25.0*kp^2*exp(ln10*2*u) + 25.0*kp^2*exp(4*ln10*u) + 25.0*ki^2 - 50.0*kd*ki*exp(ln10*2*u) + 50.0*kd*kp*exp(4*ln10*u)))");
-
-    Function F1u(kp,ki,kd,u,F1uln(kp,ki,kd,u,ln10));
-
-//    Function F1u("kp","ki","kd","u","(1.0*exp(4.605170186*u)*(exp(4.605170186*u) + 1.0)*(exp(4.605170186*u) + 10000.0)*(25.0*exp(9.210340372*u) - exp(4.605170186*u) + 25.0))/((10000.0*exp(4.605170186*u) + 1.0)*(25.0*exp(4.605170186*u) + 24.0*exp(9.210340372*u) + 25.0*exp(18.42068074*u) + 24.0*exp(13.81551056*u) + 120.0*kd*exp(9.210340372*u) - 70.0*ki*exp(4.605170186*u) - 70.0*ki*exp(9.210340372*u) + 50.0*kp*exp(4.605170186*u) - 50.0*kd*exp(13.81551056*u) - 50.0*kp*exp(13.81551056*u) + 25.0*kd^2*exp(9.210340372*u) + 25.0*ki^2*exp(4.605170186*u) + 25.0*kp^2*exp(4.605170186*u) + 25.0*kp^2*exp(9.210340372*u) + 25.0*ki^2 - 50.0*kd*ki*exp(4.605170186*u) + 50.0*kd*kp*exp(9.210340372*u)))");
-
-
-
-    //Function F2("kp","ki","kd","w","(1.0*(100.0*w^2 + 1.0)*(25.0*w^4 - 1.0*w^2 + 25.0)*(kd^2*w^4 - 2.0*kd*ki*w^2 + 2.0*kd*kp*w^4 + ki^2*w^2 + ki^2 + kp^2*w^4 + kp^2*w^2))/((w^2 + 100.0)*(25.0*kd^2*w^4 - 50.0*kd*ki*w^2 + 50.0*kd*kp*w^4 - 50.0*kd*w^6 + 120.0*kd*w^4 + 25.0*ki^2*w^2 + 25.0*ki^2 - 70.0*ki*w^4 - 70.0*ki*w^2 + 25.0*kp^2*w^4 + 25.0*kp^2*w^2 - 50.0*kp*w^6 + 50.0*kp*w^2 + 25.0*w^8 + 24.0*w^6 + 24.0*w^4 + 25.0*w^2))");
-    Function F2("kp","ki","kd","w","((100.0*w^2 + 1.0)*(25.0*w^4 - 1.0*w^2 + 25.0)*(kd^2*w^4 - 2.0*kd*ki*w^2 + 2.0*kd*kp*w^4 + ki^2*w^2 + ki^2 + kp^2*w^4 + kp^2*w^2))/((w^2 + 100.0)*(25.0*kd^2*w^4 - 50.0*kd*ki*w^2 + 50.0*kd*kp*w^4 - 50.0*kd*w^6 + 120.0*kd*w^4 + 25.0*ki^2*w^2 + 25.0*ki^2 - 70.0*ki*w^4 - 70.0*ki*w^2 + 25.0*kp^2*w^4 + 25.0*kp^2*w^2 - 50.0*kp*w^6 + 50.0*kp*w^2 + 25.0*w^8 + 24.0*w^6 + 24.0*w^4 + 25.0*w^2))");
-
-    Function F2uln("kp","ki","kd","u","ln10","(1.0*(100.0*exp(2*ln10*u) + 1.0)*(25.0*exp(4*ln10*u) - exp(2*ln10*u) + 25.0)*(kd^2*exp(4*ln10*u) + ki^2*exp(2*ln10*u) + kp^2*exp(2*ln10*u) + kp^2*exp(4*ln10*u) + ki^2 - 2.0*kd*ki*exp(2*ln10*u) + 2.0*kd*kp*exp(4*ln10*u)))/((exp(2*ln10*u) + 100.0)*(25.0*exp(2*ln10*u) + 24.0*exp(4*ln10*u) + 25.0*exp(8*ln10*u) + 24.0*exp(6*ln10*u) + 120.0*kd*exp(4*ln10*u) - 70.0*ki*exp(2*ln10*u) - 70.0*ki*exp(4*ln10*u) + 50.0*kp*exp(2*ln10*u) - 50.0*kd*exp(6*ln10*u) - 50.0*kp*exp(6*ln10*u) + 25.0*kd^2*exp(4*ln10*u) + 25.0*ki^2*exp(2*ln10*u) + 25.0*kp^2*exp(2*ln10*u) + 25.0*kp^2*exp(4*ln10*u) + 25.0*ki^2 - 50.0*kd*ki*exp(2*ln10*u) + 50.0*kd*kp*exp(4*ln10*u)))");
-
-    Function F2u(kp,ki,kd,u,F2uln(kp,ki,kd,u,ln10));
-//    Function F2u("kp","ki","kd","u","(1.0*(100.0*exp(4.605170186*u) + 1.0)*(25.0*exp(9.210340372*u) - exp(4.605170186*u) + 25.0)*(kd^2*exp(9.210340372*u) + ki^2*exp(4.605170186*u) + kp^2*exp(4.605170186*u) + kp^2*exp(9.210340372*u) + ki^2 - 2.0*kd*ki*exp(4.605170186*u) + 2.0*kd*kp*exp(9.210340372*u)))/((exp(4.605170186*u) + 100.0)*(25.0*exp(4.605170186*u) + 24.0*exp(9.210340372*u) + 25.0*exp(18.42068074*u) + 24.0*exp(13.81551056*u) + 120.0*kd*exp(9.210340372*u) - 70.0*ki*exp(4.605170186*u) - 70.0*ki*exp(9.210340372*u) + 50.0*kp*exp(4.605170186*u) - 50.0*kd*exp(13.81551056*u) - 50.0*kp*exp(13.81551056*u) + 25.0*kd^2*exp(9.210340372*u) + 25.0*ki^2*exp(4.605170186*u) + 25.0*kp^2*exp(4.605170186*u) + 25.0*kp^2*exp(9.210340372*u) + 25.0*ki^2 - 50.0*kd*ki*exp(4.605170186*u) + 50.0*kd*kp*exp(9.210340372*u)))");
-
-
-    Function b2("kp","ki","kd","60*kd - 25*ki + 35*kp + 119");
-    Function c2("kp","ki","kd", "(5*(60*kd - 50*ki + 154*kp + 60*kd*ki + 60*kd*kp + 10*ki*kp - 25*ki^2 + 35*kp^2 + 119))/(60*kd - 25*ki + 35*kp + 119)");
-    Function d2("kp","ki","kd", "5*ki*(5*kd + 5*kp + 12) - (125*ki^2)/12");
+     cout<<"objective function ok"<<endl;
+    Function rS1("kp","ki","kd","33.7524+kp+kd");
+    Function rS2("kp","ki","kd", "-0.14399999999999999999-1.00006*ki-0.0036600000000000000002*kp-0.0036*kd+0.02962962962962962963*(33.7524+kp+kd)*(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd)");
+    Function rS3("kp","ki","kd","1/(33.7524+kp+kd)*((0.14399999999999999999+1.00006*ki+0.00366*kp+0.0036*kd)*(-0.14399999999999999999-1.00006*ki-0.0036600000000000000002*kp-0.0036*kd+0.02962962962962962963*(33.7524+kp+kd)*(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd))+(33.7524+kp+kd)*((0.0036)*ki*(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd)-((0.00366)*ki+0.0036*kp)*(0.14399999999999999999+1.00006*ki+0.00366*kp+0.0036*kd))*1/(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd))");
 
     vector<Ctc*> array_ctc;
-    NumConstraint *c3= new NumConstraint(kp,ki,kd,b2(kp,ki,kd)>=0);
+    NumConstraint *c3= new NumConstraint(kp,ki,kd,rS1(kp,ki,kd)>=0);
     array_ctc.push_back(new CtcFwdBwd(*c3));
-    NumConstraint *c4= new NumConstraint(kp,ki,kd,c2(kp,ki,kd)>=0);
+    NumConstraint *c4= new NumConstraint(kp,ki,kd,rS2(kp,ki,kd)>=0);
     array_ctc.push_back(new CtcFwdBwd(*c4));
-    NumConstraint *c5= new NumConstraint(kp,ki,kd,d2(kp,ki,kd)>=0);
+    NumConstraint *c5= new NumConstraint(kp,ki,kd,rS3(kp,ki,kd)>=0);
     array_ctc.push_back(new CtcFwdBwd(*c5));
     CtcCompo ctc_routh(array_ctc);
 
@@ -295,8 +282,10 @@ int main() {
 
 //    return 0;
 
-    Function Max12(kp,ki,kd,u,ibex::max(F1u(kp,ki,kd,u),F2u(kp,ki,kd,u)));
-    Function Sum(kp,ki,kd,u,F1u(kp,ki,kd,u)+F2u(kp,ki,kd,u));
+    Function Max12(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
+    Function Sum(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
+
+
 //    Function Max123(kp,ki,kd,u,ibex::max(F3u(kp,ki,kd,u),Max12(kp,ki,kd,u)));
 
     //other variables for algo
@@ -321,7 +310,7 @@ int main() {
     Vector respoint(3);
 //    Vector respoint(2);
 
-    optiw str(lower_ub,preclwmin,&F1u,false);
+    optiw str(lower_ub,preclwmin,&Sum,false);
 
     double vol_rejected(0);
     list_elem * elemtmp;
@@ -345,7 +334,8 @@ int main() {
             continue;
         }
         double ratio = (elemtmp->box[0]).diam()/(IniboxK[0]).diam()+(elemtmp->box[1]).diam()/(IniboxK[1]).diam()+(elemtmp->box[2]).diam()/(IniboxK[2]).diam();
-        str.preclw = ratio/Inilw.volume()>preclwmin?ratio/Inilw.volume():preclwmin;
+        str.preclw = ratio/Inilw.volume()>preclwmin?ratio/(10*Inilw.volume()):preclwmin;
+//        cout<<"precision on w: "<<str.preclw<<endl;
         str.lower_ub = lower_ub;
         //******************** Routh contraction ***********************
         IntervalVector inib = elemtmp->box;
@@ -381,50 +371,50 @@ int main() {
 //        }
 
         //*********** Contract K with constraints f(k,wmax)< lower_ub  ***********
-//        if(lower_ub<POS_INFINITY){ // run contraction with every w that contains maximum
-//            IntervalVector box(elemtmp->box);
-////            cout<<"Init box befor contraction: "<<elemtmp->box<<endl;
-//            vector<SetNodeReg*>node;
-//            vector<IntervalVector> nodebox;
-////            cout<<"try to get boxes from main"<<endl;
-//            elemtmp->tree.getLeaf(&node,&nodebox);
-////            cout<<"get "<<node.size()<<" nodes and "<<nodebox.size()<<" boxes for contraction"<<endl;
-//            while(!node.empty()){ // means that exists w such as fk(w)<lower_up has no solution =>fk(w)>lower_ub
-//                if(node.back()->status == __IBEX_OUT__) {
-//                    node.pop_back();
-//                    nodebox.pop_back();
-//                    continue;
-//                }
-//                NumConstraint cst(kp,ki,kd,Sum(kp,ki,kd,(nodebox.back())[0])<=lower_ub);
-////                NumConstraint cst(kp,ki,kd,Prob(kp,ki,(nodebox.back())[0])<=lower_ub);
-//                CtcFwdBwd ctc(cst);
-//                ctc.contract(elemtmp->box);
-//                if(elemtmp->box.is_empty()){
-////                    cout<<"empty for w_interest"<<endl;
-//                    break;
-//                }
-//                node.pop_back();
-//                nodebox.pop_back();
-//            }
+        if(lower_ub<POS_INFINITY){ // run contraction with every w that contains maximum
+            IntervalVector box(elemtmp->box);
+//            cout<<"Init box befor contraction: "<<elemtmp->box<<endl;
+            vector<SetNodeReg*>node;
+            vector<IntervalVector> nodebox;
+//            cout<<"try to get boxes from main"<<endl;
+            elemtmp->tree.getLeaf(&node,&nodebox);
+//            cout<<"get "<<node.size()<<" nodes and "<<nodebox.size()<<" boxes for contraction"<<endl;
+            while(!node.empty()){ // means that exists w such as fk(w)<lower_up has no solution =>fk(w)>lower_ub
+                if(node.back()->status == __IBEX_OUT__) {
+                    node.pop_back();
+                    nodebox.pop_back();
+                    continue;
+                }
+                NumConstraint cst(kp,ki,kd,Sum(kp,ki,kd,(nodebox.back())[0])<=lower_ub);
+//                NumConstraint cst(kp,ki,kd,Prob(kp,ki,(nodebox.back())[0])<=lower_ub);
+                CtcFwdBwd ctc(cst);
+                ctc.contract(elemtmp->box);
+                if(elemtmp->box.is_empty()){
+//                    cout<<"empty for w_interest"<<endl;
+                    break;
+                }
+                node.pop_back();
+                nodebox.pop_back();
+            }
 
-////            cout<<"box after contraction: "<<elemtmp->box<<endl;
-//            if(box != elemtmp->box) {
-//                //cout<<"contraction usefull, initbox: "<<box<<"after contraction: "<<elemtmp->box<<endl<<elemtmp->w_interest.size()
-//                  // <<" interest contraction run and "<<elemtmp->w_entire.size()<<" entire contraction run"<<endl;
-//                vol_rejected +=box.volume()-elemtmp->box.volume();
-//                cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<elemtmp->fmax.lb()<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
-//            }
-//        }
-//        if(elemtmp->box.is_empty()){
-//            delete elemtmp;
-//            continue;
-//        }
+//            cout<<"box after contraction: "<<elemtmp->box<<endl;
+            if(box != elemtmp->box) {
+                //cout<<"contraction usefull, initbox: "<<box<<"after contraction: "<<elemtmp->box<<endl<<elemtmp->w_interest.size()
+                  // <<" interest contraction run and "<<elemtmp->w_entire.size()<<" entire contraction run"<<endl;
+                vol_rejected +=box.volume()-elemtmp->box.volume();
+                cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<elemtmp->fmax.lb()<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
+            }
+        }
+        if(elemtmp->box.is_empty()){
+            delete elemtmp;
+            continue;
+        }
 
 //        *************** Mid point eval *********************
         Vector midp = elemtmp->box.mid();
 //        midp = sol;
 //        str.preclw = 0.00001;
-        if((b2.eval_vector(midp))[0].lb()>=0 && (c2.eval_vector(midp))[0].lb()>=0 && (d2.eval_vector(midp))[0].lb()>=0) {// routh criterion ok for midpoint
+        if((rS1.eval_vector(midp))[0].lb()>=0 && (rS2.eval_vector(midp))[0].lb()>=0 && (rS3.eval_vector(midp))[0].lb()>=0) {// routh criterion ok for midpoint
             Function max_mid(w,Sum(Interval(midp[0]),Interval(midp[1]),Interval(midp[2]),w));
 //            Function max_mid(w,Prob(Interval(midp[0]),Interval(midp[1]),w));
             str.f = &max_mid;

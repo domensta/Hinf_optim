@@ -4,21 +4,21 @@ kp,ki,kd
 (s*s+2*0.06*0.0005*s+0.06*0.06)/(s*s*s*(40-2.5*2.5)+s*s*(40*2*0.06*0.0005)+s*(40*0.06*0.06))
 #define K
 kp+ki/s+kd*s/(1+s)
-#define W1
+#constraint W1
 (s*s+0.158*s+0.01248)/(3.162*s*s+0.08886*s+0.001248)
-#define W2
+#constraint W2
 (s*s+8.886*s+39.48)/(s*s+88.86*s+3948)
 #define W3
 10
-#constraint Tw1z1p
-1/(1+G*K)-W1
+#constraint Tw1z1
+W1/(1+G*K)
 #constraint Tw2z1
 W3*G*W1/(1+G*K)
 #constraint Tw1z2
-K*W2/(1+G*K)
+W2*K/(1+G*K)
 #constraint Tw2z2
 W2*G*K*W3/(1+G*K)
 #routh
-1/(1+G*K)
+G*K/(1+G*K)
 
 
