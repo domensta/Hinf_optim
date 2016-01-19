@@ -17,15 +17,17 @@ class polynomial {
 public:
     polynomial(string polyexp,string * variables,unsigned nbvar);
     ~polynomial();
-    double compute_bernstein_coef(unsigned * bern_coefs,unsigned* degrees,double * coef_eval,unsigned nbcoef=0,unsigned curvar=0);
     IntervalVector eval_bernstein(const IntervalVector& box);
-    double * eval_affine_coef(const IntervalVector& box);
+
 private:
     unsigned nbvar;
-    unsigned maxdeg;
     unsigned * maxdegs;
+    unsigned * occurences;
     ex *coefs;
     symbol *affine_variables;
+
+    double * eval_affine_coef(const IntervalVector& box);
+    double compute_bernstein_coef(unsigned * bern_coefs,unsigned* degrees,double * coef_eval,unsigned nbcoef=0,unsigned curvar=0);
 
 };
 
