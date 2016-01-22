@@ -10,14 +10,18 @@ kp+ki/s+kd*s/(1+s)
 (s*s+8.886*s+39.48)/(s*s+88.86*s+3948)
 #define W3
 10
-#constraint Tw1z1
+#define Tw1z1
 1/(1+G*K)
-#constraint Tw2z1
+#define Tw2z1
 W3*G/(1+G*K)
-#constraint Tw1z2
+#constraint Twz1
+Tw1z1+Tw2z1
+#define Tw1z2
 K/(1+G*K)
-#constraint Tw2z2
+#define Tw2z2
 G*K*W3/(1+G*K)
+#constraint Twz2
+Tw1z2+Tw2z2
 #routh
 G*K/(1+G*K)
 

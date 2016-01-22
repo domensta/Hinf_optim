@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <ginac/ginac.h>
 #include "math.h"
+#include <vector>
 
 using namespace GiNaC;
 using namespace ibex;
@@ -15,19 +16,20 @@ using namespace std;
 
 class polynomial {
 public:
-    polynomial(string polyexp,string * variables,unsigned nbvar);
+    polynomial(string polyexp,string * aff_variables,unsigned nbvar_aff,string * variables,unsigned nbvar);
     ~polynomial();
     IntervalVector eval_bernstein(const IntervalVector& box);
 
 private:
     unsigned nbvar;
+    unsigned nbvar_aff;
     unsigned * maxdegs;
     unsigned * occurences;
-    ex *coefs;
-    symbol *affine_variables;
+    vector<Function*> coefs;
+//    symbol *affine_variables;
 
-    double * eval_affine_coef(const IntervalVector& box);
-    double compute_bernstein_coef(unsigned * bern_coefs,unsigned* degrees,double * coef_eval,unsigned nbcoef=0,unsigned curvar=0);
+    IntervalVector eval_affine_coef(const IntervalVector& box);
+    IntervalVector compute_bernstein_coef(unsigned * bern_coefs,unsigned* degrees,IntervalVector coef_eval,unsigned nbcoef=0,unsigned curvar=0);
 
 };
 

@@ -20,7 +20,7 @@ else
 CXXFLAGS := $(CXXFLAGS) -O3 -DNDEBUG -Wno-deprecated -frounding-math -std=c++11
 endif
 
-all: $(BINS) $(OBJ)
+all: $(OBJ) $(BINS) 
       
 % :	%.cpp
 	echo $(BINS) $(OBJ) 

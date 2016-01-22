@@ -29,15 +29,23 @@ sysaug=ltisys(a1,b1,c1,d1);
 C0pid = ltiblock.pid('namePID', 'PID') ; %
 C0pid.Tf.Free=0;
 C0pid.Tf.Value=1;
-C0pid.Kp.Minimum=-10;
-C0pid.Ki.Minimum=-10;
-C0pid.Kd.Minimum=-10;
-C0pid.Kp.Maximum=10;
-C0pid.Ki.Maximum=10;
-C0pid.Kd.Maximum=10;
+C0pid.Kp.Free=0;
+C0pid.Kp.Value=7.196;
+C0pid.Ki.Free=0;
+C0pid.Ki.Value=0.0744;
+C0pid.Kd.Free=0;
+C0pid.Kd.Value=1.5044;
+% C0pid.Kp.Minimum=-10;
+% C0pid.Ki.Minimum=-10;
+% C0pid.Kd.Minimum=-10;
+% C0pid.Kp.Maximum=10;
+% C0pid.Ki.Maximum=10;
+% C0pid.Kd.Maximum=10;
 
 % Cpid is tuned version of C0pid, gam is optimal Hinf norm
 [Cpid, GAM, info] = hinfstruct(ssaug, C0pid,options) ;
+figure;
+bode(lft(Cpid,ssaug,1,1));
 norm(lft(Cpid,ssaug,1,1),inf);
 
 %% hinf synthesis
