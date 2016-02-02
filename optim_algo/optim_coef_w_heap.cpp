@@ -20,18 +20,22 @@ using namespace std;
 
 
 
-class list_elem{
+class list_elem{ // element of the master B&B algo
 public:
-    IntervalVector box;
-    IntervalVector fmax;
-    SetIntervalReg tree;
-    list_elem(IntervalVector box,SetIntervalReg tree,IntervalVector fmax);
+    IntervalVector box; // box of controller parameters
+    IntervalVector fmax; // enclosure of fmax(box), see MACIS presentation for detail
+    SetIntervalReg tree; // UKN valued leaves represents interval of frequencies that may contains maximum, correspond to wmax, see MACIS for detail
+    list_elem(IntervalVector box,SetIntervalReg tree,IntervalVector fmax); // constructor
 
 };
 list_elem::list_elem(IntervalVector box,SetIntervalReg tree,IntervalVector fmax):box(box),
     tree(tree),fmax(fmax)
-{}
+{} // constructor implementation
 
+
+//*************** template function definition for heap use*********************
+
+// penalize lower bound, use in master B&B to always deal with the lower fmax.lb that correspond to the uplo
 class cost_uplo: public CostFunc<list_elem> {
 public:
     virtual double cost(const list_elem& elem) const;
@@ -41,6 +45,7 @@ double cost_uplo::cost(const list_elem& elem) const {
     return elem.fmax[0].lb();
 }
 
+// penalize box size, not used
 class cost_box: public CostFunc<list_elem> {
 public:
     virtual double cost(const list_elem& elem) const;
@@ -49,35 +54,7 @@ public:
 double cost_box::cost(const list_elem& elem) const {
     return elem.box.volume();
 }
-
-class optiw {
-public:
-
-    double lower_ub;
-    double preclw;
-    Function *f;
-    vector< pair<polynomial *,polynomial *> > frac_wset;
-    vector< pair<polynomial *,polynomial *> > frac_wfree;
-    vector< pair<polynomial *,polynomial *> > frac_cst;
-    bool entire;
-    optiw(double lower_ub, double preclw,Function* f,vector< pair<polynomial *,polynomial *> > frac_wset,vector< pair<polynomial *,polynomial *> > frac_wfree,vector< pair<polynomial *,polynomial *> > frac_cst,bool entire);
-
-};
-
-optiw::optiw(double lower_ub, double preclw,Function* f,vector< pair<polynomial *,polynomial *> > frac_wset,vector< pair<polynomial *,polynomial *> > frac_wfree,vector< pair<polynomial *,polynomial *> > frac_cst,bool entire): lower_ub(lower_ub),preclw(preclw),f(f),frac_wset(frac_wset),frac_wfree(frac_wfree),frac_cst(frac_cst),entire(entire)
-{}
-
-class heap_elem {
-public:
-    SetNodeReg * node;
-    IntervalVector box;
-    Interval eval;
-
-    heap_elem(SetNodeReg * node, IntervalVector box, Interval eval);
-};
-heap_elem::heap_elem(SetNodeReg * node, IntervalVector box, Interval value): node(node),box(box),eval(eval)
-{}
-
+// penalized lower ub, not used
 class costf1 : public CostFunc<heap_elem> {
 public:
     virtual double cost(const heap_elem& elem) const;
@@ -86,6 +63,7 @@ public:
 double costf1::cost(const heap_elem& elem) const {
     return elem.eval.ub();
 }
+// penalized upper ub, use in slave B&B
 class costf2 : public CostFunc<heap_elem> {
 public:
     virtual double cost(const heap_elem& elem) const;
@@ -95,6 +73,42 @@ double costf2::cost(const heap_elem& elem) const {
     return -elem.eval.ub();
 }
 
+
+// optimization structure gives by the master B&B to the slave, contains slave B&B initialization value and objective function.
+class optiw {
+public:
+
+    double lower_ub;  // uplo of master
+    double preclw; // minimum size of box on w
+    Function *f; // ibex objectif function, defined as max(|Twz1|,...|Twzn|)
+    vector< pair<polynomial *,polynomial *> > frac_wset; // list of numer denom pair of |Twzi|, use for bernstein eval of w midpoint
+    vector< pair<polynomial *,polynomial *> > frac_wfree; // list of numer denom pair of |Twzi|, use for bernstein eval of controller parameters midpoint
+    vector< pair<polynomial *,polynomial *> > frac_cst; // list of numer denom pair of constraints |Wi|
+    bool entire; // maximum cannot be evaluated ([ENTIRE]) if true, not used
+    optiw(double lower_ub, double preclw,Function* f,vector< pair<polynomial *,polynomial *> > frac_wset,vector< pair<polynomial *,polynomial *> > frac_wfree,vector< pair<polynomial *,polynomial *> > frac_cst,bool entire);
+
+};
+
+optiw::optiw(double lower_ub, double preclw,Function* f,vector< pair<polynomial *,polynomial *> > frac_wset,vector< pair<polynomial *,polynomial *> > frac_wfree,vector< pair<polynomial *,polynomial *> > frac_cst,bool entire): lower_ub(lower_ub),preclw(preclw),f(f),frac_wset(frac_wset),frac_wfree(frac_wfree),frac_cst(frac_cst),entire(entire)
+{} // constructor implementation
+
+
+// element of the heap used in slave B&B
+class heap_elem {
+public:
+    SetNodeReg * node; // node of the tree that correspond to the box
+    IntervalVector box; // box of slave B&B, correspond to a frequency interval
+    Interval eval; // evaluation of objectif function with box
+
+    heap_elem(SetNodeReg * node, IntervalVector box, Interval eval);
+};
+heap_elem::heap_elem(SetNodeReg * node, IntervalVector box, Interval value): node(node),box(box),eval(eval)
+{}
+
+
+// create pair of numer denom polynomial used for bernstein eval from ibex function
+// arguments: f: ibex function, aff_var: variables in which f will be considered polynomial, nbvar_aff: number of aff_var,
+//var: other variables in which f will not be considered polynomial, nbvar: number of var. 
 pair<polynomial*,polynomial*> get_pol(Function *f,string * aff_var,unsigned nbvar_aff,string * var,unsigned nbvar) {
     symtab tab;
     for(unsigned i=0;i<nbvar_aff;i++)
@@ -128,29 +142,33 @@ pair<polynomial*,polynomial*> get_pol(Function *f,string * aff_var,unsigned nbva
 
 }
 
+//slave B&B, compute fmax and wmax, see MACIS
+// argument: optiw: see class definition, list_elem: see class definition, midp: true if mind point on controller parameter require, false else.
 double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp) {
 
     costf2 b;
-    Heap<heap_elem> heap(b); // want to increase the uplo fast to reject w
-    stack<heap_elem*> save_stack; // save element
+    Heap<heap_elem> heap(b); // focus on max ub
+    stack<heap_elem*> save_stack; // save elements
 
 
     //list.push(*str.Inilw);
-    IntervalVector res(1,Interval::EMPTY_SET),resmid(1,Interval::EMPTY_SET);
-    heap_elem *elemtmp;
-    double upper_ub = NEG_INFINITY;
-    double lower_ub = elem->fmax[0].lb();
+    IntervalVector res(1,Interval::EMPTY_SET),resmid(1,Interval::EMPTY_SET); // eval result
+    heap_elem *elemtmp; // current element
+    double upper_ub = NEG_INFINITY; // upper bound on max
+    double lower_ub = elem->fmax[0].lb(); // lower bound on max, initialized with result inherited see MACIS
 //    cout<<"preclw: "<<str->preclw<<endl;
     //cout<<"upper_ub initially: "<<upper_ub<<"fmax initially: "<<elem->fmax<<endl;
     //cout<<"number of w to check: "<<elem->w_interest.size()<<endl;
 //    int nbit = elem->w_entire.size();
-    vector<SetNodeReg*> node_vect;
-    vector<IntervalVector> node_box;
-    elem->tree.getLeaf(&node_vect,&node_box);
+    vector<SetNodeReg*> node_vect; // use to get wmax elements from the tree as node
+    vector<IntervalVector> node_box; // use to get wmax elements from the tree as box
+    elem->tree.getLeaf(&node_vect,&node_box); // get every leaves of the tree
 //    SetNodeReg* nodetmp;
 //    IntervalVector boxtmp(1);
 
 //    cout<<"get "<<node_vect.size()<<"nodes and: "<<node_box.size()<<"boxes"<<endl;
+
+    // keep only wmax from the tree leaves and create heap elem from them
     while (!node_vect.empty()) {
         if(node_vect.back()->status != __IBEX_OUT__) {
             heap.push(new heap_elem(node_vect.back(),node_box.back(),Interval::ALL_REALS));
@@ -167,23 +185,26 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp) {
             box[i] = elem->box[i];
     }
 //    cout<<"**************************** box: "<<box<<endl;
+
+    // B&B algo slave
     while(!heap.empty()) {
         elemtmp = heap.pop();
 //        cout<<"box: "<<elemtmp->box<<endl;
-        box[elem->box.size()] = elemtmp->box[0];
+        box[elem->box.size()] = elemtmp->box[0]; // get box of current element
 //        box[elem->box.size()] = elemtmp->box.mid()[0];
 
 
 //            cout<<"first res mid: "<<resmid<<" for box: "<<box<<endl;
-        if(midp){
+        if(midp){ // midpoint asked by master B&B, berstein evaluation of polynomial function in w.
             //********box eval********
-            res = str->f->eval_vector(box);
-            cout<<"res for box "<<box<<" : "<<res<<endl;
-            IntervalVector round_box(elem->box.size()+1);
-            round_box[0] = ibex::pow(Interval(10),elemtmp->box[0]);
+         //   res = str->f->eval_vector(box);
+         //   cout<<"res for box "<<box<<" : "<<res<<endl;
+            IntervalVector round_box(elem->box.size()+1); // create box for bernstein evaluation
+            round_box[0] = ibex::pow(Interval(10),elemtmp->box[0]); // need to convert u to w as function are polynomial in w for berstein eval
             for(unsigned i=1;i<=elem->box.size();i++) {
                 round_box[i] = box[i-1];
             }
+            // bernstein evaluation of |Twzi|-|Wi|, get the max wrt i
             res[0] = str->frac_wfree.at(0).first->eval_bernstein(round_box)[0]/str->frac_wfree.at(0).second->eval_bernstein(round_box)[0]
                     -str->frac_cst.at(0).first->eval_bernstein(IntervalVector(1,round_box[0]))[0]/str->frac_cst.at(0).second->eval_bernstein(IntervalVector(1,round_box[0]))[0];
             for(unsigned j=1;j<str->frac_wset.size();j++)
@@ -192,18 +213,19 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp) {
             cout<<"bernstein res for box "<<round_box<<" : "<<res<<endl;
             //****** mid w eval *******
             box[elem->box.size()] = elemtmp->box.mid()[0];
-            resmid = str->f->eval_vector(box);
+            resmid = str->f->eval_vector(box); // w midpoint eval to increase lb of max
 
         }
-        else
+        else // if evaluation for a box of controller parameter required
         {
             //********box eval********
-            res = str->f->eval_vector(box);
+            res = str->f->eval_vector(box); // ibex evaluation, to heavy for bernstein eval
             //****** mid w eval *******
-            box[elem->box.size()] = elemtmp->box.mid()[0];
+            box[elem->box.size()] = elemtmp->box.mid()[0]; // get mid of w box
 //            resmid = str->f->eval_vector(box);
 //            cout<<"resmid for box "<<box<<" : "<<str->f->eval_vector(box)<<endl;
-            box[elem->box.size()] = ibex::pow(Interval(10),box[elem->box.size()]);
+            box[elem->box.size()] = ibex::pow(Interval(10),box[elem->box.size()]); // convert u to w for berstein eval
+            // berstein evaluation of objective function, no more polynomial in w (because fixed), bernstein evaluation possible
             resmid[0] = str->frac_wset.at(0).first->eval_bernstein(box)[0]/str->frac_wset.at(0).second->eval_bernstein(box)[0]
                     -str->frac_cst.at(0).first->eval_bernstein(IntervalVector(1,box[elem->box.size()]))[0]/str->frac_cst.at(0).second->eval_bernstein(IntervalVector(1,box[elem->box.size()]))[0];
             for(unsigned i=1;i<str->frac_wset.size();i++)
@@ -212,7 +234,7 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp) {
 //            cout<<"bern resmid for box "<<box<<": "<<resmid<<endl;
         }
 
-        if(resmid[0].lb()>str->lower_ub && !midp) {
+        if(resmid[0].lb()>str->lower_ub && !midp) { // carefull, modification of master B&B element, only if !midpt
             elem->fmax = IntervalVector(1,Interval::EMPTY_SET); // box K does not minimize the maximum
             elem->tree.gather();
             delete elemtmp;
@@ -220,32 +242,32 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp) {
             return 0;}
         if(res[0].ub()<lower_ub) { // this box w does not contains the maximum for the box K
             if(!midp)
-                elemtmp->node->status = __IBEX_OUT__;
+                elemtmp->node->status = __IBEX_OUT__; // modification of wmax, only if !midpt
             delete elemtmp;
             continue;
         }
 
 
         //elem->fmax = res[0].lb()>elem->fmax[0].lb() ? IntervalVector(1,Interval(res[0].lb(),elem->fmax[0].ub())): elem->fmax;  // increase upper_lb
-        elemtmp->eval = res[0];
+        elemtmp->eval = res[0]; // store result for this element, useless as heap used? may be relic from previous version
 //        if(!midp)
 //            cout<<"midp: "<<elemtmp->box.mid()<<", eval mid: "<<resmid<<endl;
 
-        lower_ub = resmid[0].lb()>lower_ub? resmid[0].lb(): lower_ub;
-        if(elemtmp->box[elemtmp->node->var].diam() > str->preclw) {
+        lower_ub = resmid[0].lb()>lower_ub? resmid[0].lb(): lower_ub; // updax lb of max
+        if(elemtmp->box[elemtmp->node->var].diam() > str->preclw) { // bissect and push 
             elemtmp->node->cut(elemtmp->box);
             heap.push(new heap_elem(elemtmp->node->left,elemtmp->node->left_box(elemtmp->box),elemtmp->eval));
             heap.push(new heap_elem(elemtmp->node->right,elemtmp->node->right_box(elemtmp->box),elemtmp->eval));
             delete elemtmp;
         }
-        else {
+        else { // min prec on box reached, keep heap elem
 //            cout<<"max :"<< elemtmp->eval<<" for freq: "<<elemtmp->box<<endl;
             if(!midp)
                 save_stack.push(elemtmp);
             upper_ub = res[0].ub()>upper_ub?  res[0].ub(): upper_ub;
         }
     }
-    if(!midp)
+    if(!midp) // modification of master B&B elem, only if !midpt, keep wmax from saved boxes
     {
         while(!save_stack.empty()) {
             if(save_stack.top()->eval.ub()< lower_ub) {
@@ -258,23 +280,21 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp) {
         elem->fmax = IntervalVector(1,Interval(lower_ub,upper_ub));
         elem->tree.gather();
     }
-    return upper_ub;
+    return upper_ub; // return ub on max, used as result for controller parameter midpoint eval
 }
 
 
 int main() {
 
-    IntervalVector Iniprob(2,Interval(-10,10));
-    IntervalVector Iniprob2(1,Interval(-0.1,0.1));
     // precision:
-    double prec(0.01);
+    double prec(0.01); 
     double preclwmin = 1.e-4;// dynamic initialization in loop
     double stop_criterion(0.1); // stop if distance between uplo and loup lower than stop_criterion
 
     // init boxes
 
-    IntervalVector IniboxK(3,Interval(-10,10));
-    IntervalVector Inilw(1,Interval(-2,2));
+    IntervalVector IniboxK(3,Interval(-10,10)); // controller parameters init
+    IntervalVector Inilw(1,Interval(-2,2)); // u init, 
     vector< pair<polynomial *,polynomial *> > frac_wfree;
     vector< pair<polynomial *,polynomial *> > frac_wset;
     vector< pair<polynomial *,polynomial *> > frac_cst;
@@ -287,7 +307,9 @@ int main() {
     Function Twz2w("kp","ki","kd","w","((-(10.0024)*kd*w^4-(43.7524)*kp*w^4+(10.1470000000000000005)*w^2*ki-(0.036)*ki+(0.1806)*kp*w^2+(0.036)*kd*w^2-(33.75)*w^4*ki)^2+((33.75)*kp*w^5-(43.7524)*w^3*ki+(33.75)*kd*w^5+(0.1806)*w*ki+(0.036)*kp*w-(10.147)*kp*w^3-(0.14459999999999999999)*kd*w^3)^2)*1/((w^3*ki+(0.1464)*w^3-(33.75)*w^5-(0.00366)*w*ki-(0.0036)*kp*w+(1.00006)*kp*w^3+(5.9999999999999999995e-5)*kd*w^3)^2+(kd*w^4+kp*w^4-(0.14399999999999999999)*w^2-(1.00006)*w^2*ki+(33.7524)*w^4+(0.0036)*ki-(0.00366)*kp*w^2-(0.0036)*kd*w^2)^2)");
     Function w2("kp","ki","kd","w","1/((-39.48+w^2)^2+(78.960996)*w^2)*((-3948+w^2)^2+(7896.0996)*w^2)");
     Function w1("kp","ki","kd","w","((0.0078960996)*w^2+(0.001248-(3.162)*w^2)^2)*1/((0.024964)*w^2+(-0.01248+w^2)^2)");
-
+    
+    
+    // polynomial definition for berstein eval
     string aff_var[4];aff_var[0] = "kp";aff_var[1] = "ki";aff_var[2] = "kd";
     string var[4];var[0]="w";
     frac_wset.push_back(get_pol(&Twz1w,aff_var,3,var,1));
@@ -317,6 +339,8 @@ int main() {
 ////    cout<<"bernstein evaluation frac: "<<(frac.first->eval_bernstein(tbox)[0]/frac.second->eval_bernstein(tbox)[0])<<endl;
 //    return 0;
 //     cout<<"objective function ok"<<endl;
+
+ // stability criteria 
     Function rS1("kp","ki","kd","33.7524+kp+kd");
     Function rS2("kp","ki","kd", "-0.14399999999999999999-1.00006*ki-0.0036600000000000000002*kp-0.0036*kd+0.02962962962962962963*(33.7524+kp+kd)*(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd)");
     Function rS3("kp","ki","kd","1/(33.7524+kp+kd)*((0.14399999999999999999+1.00006*ki+0.00366*kp+0.0036*kd)*(-0.14399999999999999999-1.00006*ki-0.0036600000000000000002*kp-0.0036*kd+0.02962962962962962963*(33.7524+kp+kd)*(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd))+(33.7524+kp+kd)*((0.0036)*ki*(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd)-((0.00366)*ki+0.0036*kp)*(0.14399999999999999999+1.00006*ki+0.00366*kp+0.0036*kd))*1/(0.1464+ki+1.00006*kp+(5.9999999999999999995*10^(-5))*kd))");
@@ -324,7 +348,8 @@ int main() {
 //    cout<<frac_wfree.at(1).first->eval_bernstein(IntervalVector(4,Interval(1)));
 //    cout<<frac_wfree.at(1).second->eval_bernstein(IntervalVector(4,Interval(1)));
 //    cout<<"eval ok"<<endl;
-
+    
+    // stability criteria contractor 
 
     vector<Ctc*> array_ctc;
     NumConstraint *c3= new NumConstraint(kp,ki,kd,rS1(kp,ki,kd)>=0);
@@ -351,9 +376,10 @@ int main() {
 //    cout<<"max of "<<test<<" = "<<m1.eval_vector(test);
 
 //    return 0;
-
+    
+    //ibex objective function definition
     Function Max12(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
-    Function Sum(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
+ //   Function Sum(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
 
 
 
@@ -383,35 +409,36 @@ int main() {
 //    Function Prob("kp","ki","w","((kp+w-2)^6+0.2)*ln(1+(kp+w)^2)+((ki+w-2)^6+0.2)*ln(1+(ki+w)^2)"  );
 
 
-    double lower_ub(POS_INFINITY);
+    double lower_ub(POS_INFINITY); // loup initialization
 
     LargestFirst lf;
-    SetIntervalReg tree(Inilw,preclwmin,false);
+    SetIntervalReg tree(Inilw,preclwmin,false); // first tree initialization that contain wmax
 //    SetIntervalReg tree(Iniprob2,preclwmin,false);
-    tree.root->status = __IBEX_UNK__;
-    cost_uplo cu;
+    tree.root->status = __IBEX_UNK__; // wmax init
+    cost_uplo cu; // heap policy 
     Heap<list_elem> list(cu);
 
-    list_elem *elem = new list_elem(IniboxK, tree,IntervalVector(1,Interval::ALL_REALS));
+    list_elem *elem = new list_elem(IniboxK, tree,IntervalVector(1,Interval::ALL_REALS)); // list of master B&B, first element init
 //    list_elem *elem = new list_elem(Iniprob, tree,IntervalVector(1,Interval::ALL_REALS));
     list.push(elem);
 
-    Vector respoint(3);
+    Vector respoint(3); // controller parameter midpoint
 //    Vector respoint(2);
 
-    optiw str(lower_ub,preclwmin,&Max12,frac_wset,frac_wfree,frac_cst,false);
+    optiw str(lower_ub,preclwmin,&Max12,frac_wset,frac_wfree,frac_cst,false); // slave B&B class init, see class definition
 
 
-    double vol_rejected(0);
-    list_elem * elemtmp;
+    double vol_rejected(0); // % of IniK proved to not contain solution
+    list_elem * elemtmp; // current element of master B&B
 //    Vector sol(4);
 //    //matlab solution
 //    sol[0] = 0.3998;sol[1] = 0.4806;sol[2] = -0.1952;
 //    cout<<"evaluation of matlab result: "<<Sum.eval_vector(sol)<<endl;
 //    return 0;
 
+//*********** Master B&B **************
     Timer::start();
-    while(!list.empty()) {
+    while(!list.empty()) { 
         elemtmp = list.pop();
         if(lower_ub-elemtmp->fmax[0].lb()<stop_criterion) { // stop creterion reached
             break;
@@ -506,24 +533,25 @@ int main() {
         Vector midp = elemtmp->box.mid();
 //        midp = sol;
 //        str.preclw = 0.00001;
+        // if couth criteria ok for midp
         if((rS1.eval_vector(midp))[0].lb()>=0 && (rS2.eval_vector(midp))[0].lb()>=0 && (rS3.eval_vector(midp))[0].lb()>=0) {// routh criterion ok for midpoint
 //            Function max_mid(w,Max12(Interval(midp[0]),Interval(midp[1]),Interval(midp[2]),w));
 //            Function max_mid(w,Prob(Interval(midp[0]),Interval(midp[1]),w));
 //            str.f = &max_mid;
-            if(str.preclw>0.001) str.preclw=0.001;
+            if(str.preclw>0.001) str.preclw=0.001; // forces low precision to get tight enclosure
             double max = best_upper_bound_forall_w(&str,elemtmp,true);
 //            cout<<" max of mid point "<<midp<<": "<<max<<endl;
 //            return 0;
             //            cout<<"fmax: "<<elemtmp->fmax<<"lower_ub: "<<lower_ub<<endl;
 
-            if(max<lower_ub) {
+            if(max<lower_ub) { // if better solution found
                 lower_ub = max;
                 respoint = midp;
                 cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<elemtmp->fmax.lb()<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
             }
         }
 
-        if(elemtmp->box.max_diam()>prec) {
+        if(elemtmp->box.max_diam()>prec) { // bissect and push
             pair<IntervalVector,IntervalVector> boxes = lf.bisect(elemtmp->box);
 
             list.push(new list_elem(boxes.first,elemtmp->tree,elemtmp->fmax));
