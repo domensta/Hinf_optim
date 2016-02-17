@@ -1,7 +1,7 @@
 #variables
 kp,ki,kd
 #define G
-(s*s+2*0.06*0.0005*s+0.06*0.06)/(s*s*s*(40-2.5*2.5)+s*s*(40*2*0.06*0.0005)+s*(40*0.06*0.06))
+(s*s+2*0.06*0.0005*s+0.06*0.06)/(s*s*s*(40-2.5*2.5)+s*s*(40*2*0.06*0.0005)+s*(40*0.06*0.06))*1/s
 #define K
 kp+ki/s+kd*s/(1+s)
 #constraint W1
@@ -10,19 +10,15 @@ kp+ki/s+kd*s/(1+s)
 (s*s+8.886*s+39.48)/(s*s+88.86*s+3948)
 #define W3
 10
-#define Tw1z1
+#constraint Tw1z1
 1/(1+G*K)
-#define Tw2z1
-W3*G/(1+G*K)
-#constraint Twz1
-Tw1z1+Tw2z1
-#define Tw1z2
+#constraint Tw2z1
+-W3*G/(1+G*K)
+#constraint Tw1z2
 K/(1+G*K)
-#define Tw2z2
-G*K*W3/(1+G*K)
-#constraint Twz2
-Tw1z2+Tw2z2
+#constraint Tw2z2
+-G*K*W3/(1+G*K)
 #routh
-G*K/(1+G*K)
+K*G/(1+G*K)
 
 

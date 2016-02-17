@@ -11,7 +11,7 @@ kp+ki/s+kd*s/(1+s)
 #constraint Twz1
 W1/(1+G*K)
 #constraint Twz2
-W2*K/(1+G*K)
+K/(1+G*K)
 #routh
 1/(1+G*K)
 

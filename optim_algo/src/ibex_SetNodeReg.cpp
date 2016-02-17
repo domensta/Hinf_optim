@@ -204,7 +204,7 @@ void SetNodeReg::cleave(const IntervalVector& box, Sep& sep, const double eps) {
 	sep.separate(box1,box2);
     if(box1.is_empty()){
         inter(OUT);
-        cout<<"box: "<<box<<" set to OUT"<<endl;
+//        cout<<"box: "<<box<<" set to OUT"<<endl;
     }
 
     else if(box2.is_empty()){

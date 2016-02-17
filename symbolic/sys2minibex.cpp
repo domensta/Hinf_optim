@@ -202,8 +202,8 @@ bool syscst2minibex(char * filename) {
         cout<<"degree of polynomial "<<denftbf<<" : "<<deg<<endl;
         int nbcol = (deg+1)%2==1?(deg+2)/2:(deg+1)/2;
         cout<<"nbcol: "<<nbcol<<endl;
-        ex routhtable[1+nbcol][nbcol];
-        cout<<"size of routhtable: "<<1+nbcol<<","<<nbcol<<endl;
+        ex routhtable[deg+1][nbcol];
+        cout<<"size of routhtable: "<<deg+1<<","<<nbcol<<endl;
         for(unsigned i=0;i<=deg;i+=2) {
             routhtable[0][i/2] = denftbf.coeff(p,deg-i);
             cout<<"routhtable 0,"<<i/2<<": "<<denftbf.coeff(p,deg-i)<<endl;
@@ -211,11 +211,14 @@ bool syscst2minibex(char * filename) {
             cout<<"routhtable 1,"<<i/2<<": "<<denftbf.coeff(p,deg-(i+1))<<endl;
         }
         out<<"return("<<routhtable[0][0]<<","<<routhtable[1][0];
-        for(unsigned i=2;i<nbcol+1;i++)
+        for(unsigned i=2;i<=deg;i++)
         {
-            for(unsigned j=0;j<nbcol+1-i;j++){
+            for(unsigned j=0;j<nbcol-1;j++){
                 cout<<"indice: "<<i<<","<<j<<endl;
-                routhtable[i][j] = -1/routhtable[i-2][j]*(routhtable[i-2][j]*routhtable[i-1][j+1]-routhtable[i-1][j]*routhtable[i-2][j+1]);
+                if(routhtable[i-2][j+1] == 0)
+                    routhtable[i][j] = 0;
+                else
+                    routhtable[i][j] = -1/routhtable[i-1][j]*(routhtable[i-2][j]*routhtable[i-1][j+1]-routhtable[i-1][j]*routhtable[i-2][j+1]);
                 cout<<routhtable[i][j]<<endl;
             }
             out<<","<<routhtable[i][0];

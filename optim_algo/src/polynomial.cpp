@@ -32,7 +32,7 @@ polynomial::polynomial(string polyexp, string *aff_variables,unsigned nbvar_aff,
     occurences[nbvar_aff-1]=1;
     for(int i=nbvar_aff-2;i>=0;i--) {
         occurences[i] = occurences[i+1]*(maxdegs[i+1]+1);
-        cout<<"occurences "<<i<<": "<<occurences[i]<<endl;
+//        cout<<"occurences "<<i<<": "<<occurences[i]<<endl;
     }
     unsigned nbcoef = occurences[0]*(maxdegs[0]+1);
     cout<<"nbcoef: "<<nbcoef<<endl;
@@ -51,12 +51,12 @@ polynomial::polynomial(string polyexp, string *aff_variables,unsigned nbvar_aff,
         for(unsigned j=1;j<nbvar_aff;j++) {
             degree = maxdegs[j]-nbit/occurences[j];
             extmp = extmp.expand().coeff(var[j],degree);
-            cout<<"var: "<<j<<", "<<"degree: "<<degree<<endl;
+//            cout<<"var: "<<j<<", "<<"degree: "<<degree<<endl;
             nbit%=occurences[j];
 
 
         }
-        cout<<"expression: "<<extmp<<endl;
+//        cout<<"expression: "<<extmp<<endl;
         stringstream ss;
         ss<<extmp;
         string xvar = "x["+to_string(2*nbvar_aff+nbvar)+"]";
