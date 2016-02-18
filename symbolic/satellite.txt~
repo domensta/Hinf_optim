@@ -19,6 +19,6 @@ K/(1+G*K)
 #constraint Tw2z2
 -G*K*W3/(1+G*K)
 #routh
-K*G/(1+G*K)
+1/(1+G*K)
 
 

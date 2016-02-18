@@ -1,9 +1,9 @@
 #variables
-kp,ki,kd
+kp,ki,kd,tf
 #define G
 (s*s+2*0.06*0.0005*s+0.06*0.06)/(s*s*s*(40-2.5*2.5)+s*s*(40*2*0.06*0.0005)+s*(40*0.06*0.06))*1/s
 #define K
-kp+ki/s+kd*s/(1+s)
+kp+ki/s+kd*s/(tf+s)
 #constraint W1
 (s*s+0.158*s+0.01248)/(3.162*s*s+0.08886*s+0.001248)
 #constraint W2

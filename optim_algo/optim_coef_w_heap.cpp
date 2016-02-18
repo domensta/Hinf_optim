@@ -178,6 +178,8 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
     double lower_ub = elem->fmax[0].lb();
     LargestFirst lf(0,0.45);
     Variable kp,ki,kd,u;
+    NumConstraint cst1(kp,ki,kd,u,(*(str->f))(kp,ki,kd,u)<=str->lower_ub);
+    CtcFwdBwd ctc1(cst1);
 //    cout<<"preclw: "<<str->preclw<<endl;
     //cout<<"upper_ub initially: "<<upper_ub<<"fmax initially: "<<elem->fmax<<endl;
     //cout<<"number of w to check: "<<elem->w_interest.size()<<endl;
@@ -237,9 +239,10 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
             IntervalVector ctcbox(box);
             if (cres[0].lb()<str->lower_ub)
             {
-                str->f->backward(IntervalVector(1,Interval(cres[0].lb(),str->lower_ub)),ctcbox);
+                ctc1.contract(ctcbox);
             }
-            if(!ctcbox.is_empty()){
+            if(!ctcbox.is_empty())
+            {
                 //            cout<<"res for box "<<box<<" : "<<res<<endl;
                 IntervalVector round_box(elem->box.size()+1);
                 round_box[0] = ibex::pow(Interval(10),elemtmp->box[0]);
@@ -263,8 +266,10 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
                 box[elem->box.size()] = elemtmp->box.mid()[0];
                 resmid = str->f->eval_vector(box);
             }
-            else
-                resmid[0]=Interval(str->lower_ub+1);
+            else{
+                cout<<"w failure midpt"<<endl;
+                resmid[0]=Interval(1000);
+            }
 //            if(!resmid[0].is_subset(res[0]))
 //            resmid = res.lb();
 //            cout<<"eval ok"<<endl;
@@ -278,10 +283,16 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
             //********box eval********
             res = str->f->eval_vector(box);
             IntervalVector ctcbox(box);
+//            cout<<"res: "<<res<<endl;
+
             if (res[0].lb()<str->lower_ub)
             {
-                str->f->backward(IntervalVector(1,Interval(res[0].lb(),str->lower_ub)),ctcbox);
+//                cout<<"ctcbox: "<<ctcbox;
+                ctc1.contract(ctcbox);
+//                cout<<" after contraction: "<<ctcbox<<endl;
             }
+            if(ctcbox!=box)
+                cout<<"contraction hit! box: "<<box<<" ctcbox: "<<ctcbox<<endl;
             if(!ctcbox.is_empty())
             {
                 //****** mid w eval *******
@@ -307,9 +318,9 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
             }
 
         }
-        cout<<"resmid: "<<resmid<<endl;
+//        cout<<"resmid: "<<resmid<<endl;
         if(resmid[0].lb()>str->lower_ub) {
-            cout<<"stop slave because w failure"<<endl;
+//            cout<<"stop slave because w failure"<<endl;
             if(!midp){
                 elem->fmax = IntervalVector(1,Interval::EMPTY_SET); // box K does not minimize the maximum
                 delete elemtmp;
@@ -586,29 +597,67 @@ int main() {
     ctc_array.add(*c5);
     sep_array.push_back(new SepFwdBwd(rS5,GEQ));
     routh_func.push_back(&rS5);
-//    NumConstraint *c6= new NumConstraint(kp,ki,kd,rT1(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c6));
-//    NumConstraint *c7= new NumConstraint(kp,ki,kd,rT2(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c7));
-//    NumConstraint *c8= new NumConstraint(kp,ki,kd,rT3(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c8));
-//    NumConstraint *c9= new NumConstraint(kp,ki,kd,rT4(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c9));
-//    NumConstraint *c10= new NumConstraint(kp,ki,kd,rT5(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c10));
-//    NumConstraint *c11= new NumConstraint(kp,ki,kd,rGS1(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c11));
-//    NumConstraint *c12= new NumConstraint(kp,ki,kd,rGS2(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c12));
-//    NumConstraint *c13= new NumConstraint(kp,ki,kd,rGS3(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c13));
-//    NumConstraint *c14= new NumConstraint(kp,ki,kd,rGS4(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c14));
-//    NumConstraint *c15= new NumConstraint(kp,ki,kd,rGS5(kp,ki,kd)>=0);
-//    array_ctc.push_back(new CtcFwdBwd(*c15));
+    NumConstraint *c6= new NumConstraint(kp,ki,kd,rT1(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c6));
+    ctc_array.add(*c6);
+    NumConstraint *c7= new NumConstraint(kp,ki,kd,rT2(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c7));
+    ctc_array.add(*c7);
+    NumConstraint *c8= new NumConstraint(kp,ki,kd,rT3(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c8));
+    ctc_array.add(*c8);
+    NumConstraint *c9= new NumConstraint(kp,ki,kd,rT4(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c9));
+    ctc_array.add(*c9);
+    NumConstraint *c10= new NumConstraint(kp,ki,kd,rT5(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c10));
+    ctc_array.add(*c10);
+    NumConstraint *c11= new NumConstraint(kp,ki,kd,rGS1(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c11));
+    ctc_array.add(*c11);
+    NumConstraint *c12= new NumConstraint(kp,ki,kd,rGS2(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c12));
+    ctc_array.add(*c12);
+    NumConstraint *c13= new NumConstraint(kp,ki,kd,rGS3(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c13));
+    ctc_array.add(*c13);
+    NumConstraint *c14= new NumConstraint(kp,ki,kd,rGS4(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c14));
+    ctc_array.add(*c14);
+    NumConstraint *c15= new NumConstraint(kp,ki,kd,rGS5(kp,ki,kd)>=0);
+    array_ctc.push_back(new CtcFwdBwd(*c15));
+    ctc_array.add(*c15);
     CtcCompo ctc_routh(array_ctc);
-    CtcHC4 routhhc4(ctc_array);
-    CtcAcid()
+
+    SystemFactory fac;
+    fac.add_var(kp);
+    fac.add_var(ki);
+    fac.add_var(kd);
+    fac.add_ctr(*c1);
+    fac.add_ctr(*c2);
+    fac.add_ctr(*c3);
+    fac.add_ctr(*c4);
+    fac.add_ctr(*c5);
+
+    NormalizedSystem sys(fac) ;
+
+    Ctc* hc4=new CtcHC4(sys,PROPAG_RATIO,HC4_INCREMENTAL);
+    Ctc* hc44cid=new CtcHC4(sys.ctrs,0.1,true);
+    Ctc* acidhc4=new CtcAcid(sys,*hc44cid,EQ_EPS);
+    Ctc* ctc=new CtcCompo(*hc4, *acidhc4);
+
+    vector<LinearRelaxXTaylor::corner_point> cpoints;
+    cpoints.push_back(LinearRelaxXTaylor::RANDOM);
+    cpoints.push_back(LinearRelaxXTaylor::RANDOM_INV);
+    LinearRelax* lr = new LinearRelaxXTaylor(sys,cpoints);
+    Ctc* cxn_poly = new CtcPolytopeHull(*lr, CtcPolytopeHull::ALL_BOX);
+    Ctc* hc44xn = new CtcHC4(sys.ctrs,PROPAG_RATIO,false);
+    Ctc* cxn_compo = new CtcCompo(*cxn_poly, *hc44xn);
+    Ctc* cxn = new CtcFixPoint(*cxn_compo, FIXPOINT_RATIO);
+
+    Ctc* ctc_final = new CtcCompo(*ctc, *cxn);
+
+
 //    SepUnion routh_sep(sep_array);
 //    SetIntervalReg stabpav(IniboxK,0.1);
 //    stabpav.contract(routh_sep);
@@ -636,6 +685,13 @@ int main() {
     Function Max12(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
     Function Sum(kp,ki,kd,u,ibex::max(Twz1(kp,ki,kd,u),Twz2(kp,ki,kd,u)));
 
+
+//    IntervalVector box1(4);box1[0]=Interval(-10,10);box1[1]=Interval(0,10);box1[2]=Interval(0,10);box1[3]=Interval(-3,3);
+//    NumConstraint cst1(kp,ki,kd,Max12(kp,ki,kd,box1[0])<=100);
+//    CtcFwdBwd ctc1(cst1);
+//    ctc1.contract(box1);
+//    cout<<"contraction: "<<box1<<endl;
+//    return 0;
 
 
 //    costf2 b;
@@ -688,8 +744,8 @@ int main() {
 //    Function Prob("kp","ki","w","((kp+w-2)^6+0.2)*ln(1+(kp+w)^2)+((ki+w-2)^6+0.2)*ln(1+(ki+w)^2)"  );
 
 
-    double lower_ub(POS_INFINITY);
-//    double lower_ub(13);
+//    double lower_ub(POS_INFINITY);
+    double lower_ub(100);
     double upper_lb(0);
 
     LargestFirst lf;
@@ -746,7 +802,8 @@ int main() {
         str.lower_ub = lower_ub;
         //******************** Routh contraction ***********************
         IntervalVector inib = elemtmp->box;
-        routhhc4.contract(elemtmp->box);
+        ctc_final->contract(elemtmp->box);
+//        ctc_routh.contract(elemtmp->box);
         if(elemtmp->box != inib) {
             vol_rejected += inib.volume()-elemtmp->box.volume();
             cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
@@ -763,7 +820,7 @@ int main() {
 //        str.f = &g;
 
         best_upper_bound_forall_w(&str,elemtmp,false,Vector(3));
-        cout<<"res found for box "<<elemtmp->box<<" : "<<endl<<"        "<<elemtmp->fmax<<endl;
+//        cout<<"res found for box "<<elemtmp->box<<" : "<<endl<<"        "<<elemtmp->fmax<<endl;
         if(elemtmp->fmax[0] == Interval::EMPTY_SET) { // maximum is guaranteed to be higher than the current lower_up for box elemtmp->box
             vol_rejected+= elemtmp->box.volume();
             cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
@@ -772,44 +829,44 @@ int main() {
         }
 
         //*********** Contract K with constraints f(k,wmax)< lower_ub  ***********
-        if(lower_ub<POS_INFINITY){ // run contraction with every w that contains maximum
-            IntervalVector box(elemtmp->box);
-//            cout<<"Init box befor contraction: "<<elemtmp->box<<endl;
-//            cout<<"try to get boxes from main"<<endl;
-            vector<heap_elem*> stackheapelem;
-            heap_elem *htmp;
-//            cout<<"get "<<node.size()<<" nodes and "<<nodebox.size()<<" boxes for contraction"<<endl;
-            while(!elemtmp->heap.empty()){ // means that exists w such as fk(w)<lower_up has no solution =>fk(w)>lower_ub
-                htmp = elemtmp->heap.pop();
-                stackheapelem.push_back(htmp);
-                NumConstraint cst(kp,ki,kd,Max12(kp,ki,kd,(htmp->box)[0])<=lower_ub);
-//                NumConstraint cst(kp,ki,kd,Prob(kp,ki,(nodebox.back())[0])<=lower_ub);
-                CtcFwdBwd ctc(cst);
-                ctc.contract(elemtmp->box);
-                if(elemtmp->box.is_empty()){
-//                    cout<<"empty for w_interest"<<endl;
-                    break;
-                }
-            }
+//        if(lower_ub<POS_INFINITY){ // run contraction with every w that contains maximum
+//            IntervalVector box(elemtmp->box);
+////            cout<<"Init box befor contraction: "<<elemtmp->box<<endl;
+////            cout<<"try to get boxes from main"<<endl;
+//            vector<heap_elem*> stackheapelem;
+//            heap_elem *htmp;
+////            cout<<"get "<<node.size()<<" nodes and "<<nodebox.size()<<" boxes for contraction"<<endl;
+//            while(!elemtmp->heap.empty()){ // means that exists w such as fk(w)<lower_up has no solution =>fk(w)>lower_ub
+//                htmp = elemtmp->heap.pop();
+//                stackheapelem.push_back(htmp);
+//                NumConstraint cst(kp,ki,kd,Max12(kp,ki,kd,(htmp->box)[0])<=lower_ub);
+////                NumConstraint cst(kp,ki,kd,Prob(kp,ki,(nodebox.back())[0])<=lower_ub);
+//                CtcFwdBwd ctc(cst);
+//                ctc.contract(elemtmp->box);
+//                if(elemtmp->box.is_empty()){
+////                    cout<<"empty for w_interest"<<endl;
+//                    break;
+//                }
+//            }
 
-//            cout<<"box after contraction: "<<elemtmp->box<<endl;
-            if(box != elemtmp->box) {
-                cout<<"contraction usefull, initbox: "<<box<<", after contraction: "<<elemtmp->box<<endl;
-                vol_rejected +=box.volume()-elemtmp->box.volume();
-                cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
-            }
-            if(elemtmp->box.is_empty()){
-                elemtmp->heap.flush();
-                delete elemtmp;
-                continue;
-            }
-            else {
-                while(!stackheapelem.empty()){
-                    elemtmp->heap.push(stackheapelem.back());
-                    stackheapelem.pop_back();
-                }
-            }
-        }
+////            cout<<"box after contraction: "<<elemtmp->box<<endl;
+//            if(box != elemtmp->box) {
+//                cout<<"contraction usefull, initbox: "<<box<<", after contraction: "<<elemtmp->box<<endl;
+//                vol_rejected +=box.volume()-elemtmp->box.volume();
+//                cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
+//            }
+//            if(elemtmp->box.is_empty()){
+//                elemtmp->heap.flush();
+//                delete elemtmp;
+//                continue;
+//            }
+//            else {
+//                while(!stackheapelem.empty()){
+//                    elemtmp->heap.push(stackheapelem.back());
+//                    stackheapelem.pop_back();
+//                }
+//            }
+//        }
 
 
 //        *************** Mid point eval *********************
@@ -821,7 +878,7 @@ int main() {
 //            cout<<"box: "<<elemtmp->box<<" midpt: "<<midp<<endl;
             stab = true;
             for(unsigned i=0;i<routh_func.size();i++) {
-                stab &= routh_func.at(i)->eval_vector(midp)[0].lb()>0;//+(i==3)*(-0.1);
+                stab &= routh_func.at(i)->eval_vector(midp)[0].lb()>-0.001;//+(i==3)*(-0.1);
                 //            cout<<"routh "<<i<<": "<<routh_func.at(i)->eval_vector(midp)[0]<<endl;
                 if(!stab){
 //                    cout<<"midp fail: routh("<<i<<"): "<<routh_func.at(i)->eval_vector(midp)[0]<<endl;
