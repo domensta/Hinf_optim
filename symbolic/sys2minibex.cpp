@@ -215,13 +215,16 @@ bool syscst2minibex(char * filename) {
         {
             for(unsigned j=0;j<nbcol-1;j++){
                 cout<<"indice: "<<i<<","<<j<<endl;
-                if(routhtable[i-2][j+1] == 0)
+                if(routhtable[i-2][j+1] == 0 || routhtable[i-1][0] ==0 )
                     routhtable[i][j] = 0;
-                else
-                    routhtable[i][j] = -1/routhtable[i-1][j]*(routhtable[i-2][j]*routhtable[i-1][j+1]-routhtable[i-1][j]*routhtable[i-2][j+1]);
+                else{
+                    routhtable[i][j] = -1/routhtable[i-1][0]*(routhtable[i-2][0]*routhtable[i-1][j+1]-routhtable[i-1][0]*routhtable[i-2][j+1]);
+                    routhtable[i][j] = routhtable[i][j].normal();
+                }
                 cout<<routhtable[i][j]<<endl;
             }
-            out<<","<<routhtable[i][0];
+//            ex tmp = numer_denom(routhtable[i][0].expand());
+            out<<","<<routhtable[i][0];//<<"/"<<routhtable[i][j];
         }
         out<<")";
 //    }

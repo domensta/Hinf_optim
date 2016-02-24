@@ -26,10 +26,12 @@ sysaug=ltisys(a1,b1,c1,d1);
 
 
 % define PID controller, 'P', 'PI', 'PD' also possible
- options = hinfstructOptions('RandomStart',10, 'Display', 'off');
+ options = hinfstructOptions('RandomStart',1, 'Display', 'off');
 C0pid = ltiblock.pid('namePID', 'PID') ; %
-C0pid.Tf.Free=0;
-C0pid.Tf.Value=1;
+%C0pid.Tf.Free=0;
+%C0pid.Tf.Value=1;
+C0pid.Tf.Minimum=0;
+C0pid.Tf.Maximum=5;
 C0pid.Kp.Minimum=-10;
 C0pid.Ki.Minimum=-10;
 C0pid.Kd.Minimum=-10;
@@ -69,8 +71,7 @@ sys=ss(a2,b2,c2,d2);
 trace_hinf(sys,cor,inv_W2,inv_W3,inv_W1)
 s = tf('s');
 pid =4.93953 + 0.0490246/s +7.16762*s/(1+s); % not remove
-5.48324 ; 0.456027 ; 6.06524
-pid =5.48324 +  0.456027/s +6.06524*s/(1+s);
+pid =-8.4 +7.4/s +9.1*s/(1+1.1*s);
 trace_hinf(sys,Cpid,inv_W2,inv_W3,inv_W1)
 % marges de stabilit�
 figure
@@ -80,3 +81,14 @@ plot(-180,0,'k+')
 grid
 zoom on
 hold off
+%%
+mat = [-88.8577 , -1973.42 , 0.223691 , 0 , 0 , 0 , 0 , 0 , 4.70394 , 0.00142706;
+-1973.42 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , 0 , -0.5;
+0.223691 , 0 , 0 , -0.5 , 0 , 0.238506 , 8.88889e-07 , 5.33333e-05 , 0 , 0;
+0 , 0 , -0.5 , -0.0280993 , 0.499803 , 0 , 0 , 0 , 0 , 0;
+0 , 0 , 0 , 0.499803 , 0 , 0 , 0.5 , 0 , 0 , 0;
+0 , 0 , 8.88889e-07 , 0 , 0.5 , 0 , 0 , 0 , 0 , 0;
+0 , 0 , 5.33333e-05 , 0 , 0 , 0.5 , 0 , 0 , 0 , 0;
+4.70394 , 0 , 0 , 0 , 0 , 4.70394 , 0 , 0 , 1 , 0;
+0 , 0 , 0.238506 , 0 , 0 , 0 , 0 , 0.5 , 4.70394 , 0.00142706;
+0.00142706 , -0.5 , 0 , 0 , 0 , 0.00142706 , 0 , 0 , 0 , -0.994219]
