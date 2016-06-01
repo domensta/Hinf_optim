@@ -3,14 +3,14 @@
 
 polynomial::polynomial(string polyexp, string *aff_variables,unsigned nbvar_aff, string *variables,unsigned nbvar):nbvar(nbvar),nbvar_aff(nbvar_aff) {
     symbol * affine_variables = new symbol[nbvar_aff*2];
-    symbol var[nbvar+nbvar_aff];
-    for(unsigned i=0;i<nbvar_aff;i++) {
-        var[i] = symbol(aff_variables[i]);
-        affine_variables[i*2] = symbol("x("+to_string(i*2+1)+")");
-        affine_variables[i*2+1] = symbol("x("+to_string(i*2+2)+")");
-    }
-    for(unsigned i=0;i<nbvar;i++)
-        var[nbvar_aff+i] = symbol("x("+to_string(nbvar_aff*2+i+1)+")");
+        symbol var[nbvar+nbvar_aff];
+        for(unsigned i=0;i<nbvar_aff;i++) {
+            var[i] = symbol(aff_variables[i]);
+            affine_variables[i*2] = symbol("x("+to_string(i*2+1)+")");
+            affine_variables[i*2+1] = symbol("x("+to_string(i*2+2)+")");
+        }
+        for(unsigned i=0;i<nbvar;i++)
+            var[nbvar_aff+i] = symbol("x("+to_string(nbvar_aff*2+i+1)+")");
 //    cout<<"variables ok"<<endl;
     symtab tab;
     for(unsigned i=0;i<nbvar_aff;i++)
@@ -72,7 +72,7 @@ polynomial::polynomial(string polyexp, string *aff_variables,unsigned nbvar_aff,
 //        cout<<"evaluation of coef "<<i<<": "<<coefs.back()->eval_vector(IntervalVector(nbvar*2,Interval(1)))<<endl;
 //        cout<<"coef at "<<i<<": "<<extmp<<endl;
     }
-    cout<<"end of constructor"<<endl;
+//    cout<<"end of constructor"<<endl;
 }
 
 polynomial::~polynomial() {
