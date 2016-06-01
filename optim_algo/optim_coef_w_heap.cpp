@@ -1,6 +1,6 @@
 
 
-#include "/home/bumquist/Tools/ibex/OUT/include/ibex/ibex.h"
+#include "/home/kiwi/Tools/ibex-lib-ibex-2.1.18/OUT/include/ibex/ibex.h"
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +31,7 @@ using namespace std;
 using namespace Eigen;
 
 
-class bernfunc {
+class bernfunc {  // berstein class for bernstein evaluation of multivariate polynomial
 public:
     vector< pair<polynomial *,polynomial *> > modulus;
     bernfunc(vector< pair<polynomial *,polynomial *> > modulus);
@@ -42,16 +42,19 @@ bernfunc::bernfunc(vector< pair<polynomial *,polynomial *> > modulus):modulus(mo
 IntervalVector bernfunc::eval_bernstein(const IntervalVector &box) {
     Interval res(0);
     for(unsigned i=0;i<modulus.size();i++)
-       res += ibex::sqrt(modulus.at(i).first->eval_bernstein(box)[0])/ibex::sqrt(modulus.at(i).second->eval_bernstein(box)[0]);
+       res += modulus.at(i).first->eval_bernstein(box)[0]/modulus.at(i).second->eval_bernstein(box)[0];
+    res = ibex::sqrt(res);
     return IntervalVector(1,res);
 }
 
 
-class heap_elem {
+class heap_elem { // heap element of slave branch and bound
 public:
 //    SetNodeReg * node;
-    IntervalVector box;
-    Interval eval;
+    IntervalVector box; // omega 
+    Interval eval; // evaluation result
+
+    //constructors
 
 //    heap_elem(SetNodeReg * node, IntervalVector box, Interval eval);
     heap_elem(IntervalVector box, Interval eval);
@@ -64,22 +67,26 @@ heap_elem::heap_elem(IntervalVector box, Interval eval):box(box),eval(eval)
 heap_elem::heap_elem(const heap_elem& he):box(he.box),eval(he.eval)
 {}
 
-class list_elem{
+class list_elem{ // heap of main b&b
 public:
-    IntervalVector box;
-    IntervalVector fmax;
-    Heap<heap_elem> heap;
+    IntervalVector box; // k box
+    IntervalVector fmax; // enclosure of max(f(box))
+    Heap<heap_elem> heap;// heap of slave b&b, inherited from father box
+    bool stable; // true if a stable point has been found in box
 //    list_elem(IntervalVector box,SetIntervalReg tree,IntervalVector fmax);
-    list_elem(IntervalVector box,Heap<heap_elem> heap,IntervalVector fmax);
     bool computable;
+
+    // constructor
+    list_elem(IntervalVector box,Heap<heap_elem> heap,IntervalVector fmax,bool stable);
+
 //    ~list_elem();
 
 };
 //list_elem::list_elem(IntervalVector box,SetIntervalReg tree,IntervalVector fmax):box(box),
 //    tree(tree),fmax(fmax)
 //{}
-list_elem::list_elem(IntervalVector box,Heap<heap_elem> heap,IntervalVector fmax):box(box),
-    heap(heap),fmax(fmax),computable(true)
+list_elem::list_elem(IntervalVector box,Heap<heap_elem> heap,IntervalVector fmax,bool stable):box(box),
+    heap(heap),fmax(fmax),computable(true),stable(stable)
 {}
 //list_elem::~list_elem() {heap.flush();}
 
@@ -101,16 +108,18 @@ double cost_box::cost(const list_elem& elem) const {
     return elem.box.volume();
 }
 
-class optiw {
+class optiw { // optimization information
 public:
 
-    double lower_ub;
-    double preclw;
-    Function *f;
-    vector< bernfunc > bernwset;
-    vector< bernfunc > bernwfree;
-    vector< bernfunc> berncst;
-    bool entire;
+    double lower_ub; // current uplo
+    double preclw; // omega bissection criterion
+    Function *f; // objective function
+    vector< bernfunc > bernwset; // bernstein evaluation of f(k,w), w is a fixed interval
+    vector< bernfunc > bernwfree; // bernstein evaluation of f(k,w), k is a fixed interval
+    vector< bernfunc> berncst; // bernstein evaluation of routh equations
+    bool entire; // ??
+
+    //constructor
     optiw(double lower_ub, double preclw,Function* f,vector< bernfunc> frac_wset,vector< bernfunc > frac_wfree,vector< bernfunc> frac_cst,bool entire);
 
 };
@@ -124,7 +133,7 @@ public:
     virtual double cost(const heap_elem& elem) const;
 
 };
-double costf1::cost(const heap_elem& elem) const {
+double costf1::cost(const heap_elem& elem) const { // first elem of heap has the smaller lower bound of max(f(k))
     return -elem.eval.lb();
 }
 class costf2 : public CostFunc<heap_elem> {
@@ -132,13 +141,13 @@ public:
     virtual double cost(const heap_elem& elem) const;
 
 };
-double costf2::cost(const heap_elem& elem) const {
+double costf2::cost(const heap_elem& elem) const {// first elem of heap has the smaller upper bound of max(f(k))
     return -elem.eval.ub();
 }
 
 
 
-pair<polynomial*,polynomial*> get_pol(Function *f,string * aff_var,unsigned nbvar_aff,string * var,unsigned nbvar) {
+pair<polynomial*,polynomial*> get_pol(Function *f,string * aff_var,unsigned nbvar_aff,string * var,unsigned nbvar) { // return numerator and denominator as polynomial to be bernstein evaluated
     symtab tab;
     for(unsigned i=0;i<nbvar_aff;i++)
         tab[aff_var[i]] = symbol(aff_var[i]);
@@ -169,7 +178,7 @@ pair<polynomial*,polynomial*> get_pol(Function *f,string * aff_var,unsigned nbva
 
 }
 
-pair<polynomial*,polynomial*> real_part_pol(string sexp,string *var,unsigned nbvar) {
+pair<polynomial*,polynomial*> real_part_pol(string sexp,string *var,unsigned nbvar) {// return numerator and denominator of the real_part of function
     symtab tab;
     for(unsigned i=0;i<nbvar;i++){
         tab[var[i]] = realsymbol(var[i]);
@@ -207,7 +216,7 @@ pair<polynomial*,polynomial*> real_part_pol(string sexp,string *var,unsigned nbv
 
 }
 
-Interval cutoff_bound(vector<Function> pol_coef, const IntervalVector& box) {
+Interval cutoff_bound(vector<Function> pol_coef, const IntervalVector& box) { //?? see applied interval analysis part
     Interval res(0);
     for(unsigned i=0;i<pol_coef.size()-1;i++){
         res = ibex::max(res,pol_coef.at(i).eval_vector(box)[0]);
@@ -216,7 +225,7 @@ Interval cutoff_bound(vector<Function> pol_coef, const IntervalVector& box) {
     return res;
 }
 
-double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector midpt) {
+double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector midpt) { // slave b&b
 
 //    costf2 b;
 //    Heap<heap_elem> heap(b); // want to increase the uplo fast to reject w
@@ -230,8 +239,11 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
     LargestFirst lf(0,0.5);
 
     Variable kp,ki,kd,tf,u;
-    NumConstraint infub(kp,ki,kd,tf,u,(*(str->f))(kp,ki,kd,tf,u)<=1000000);
+
+    NumConstraint infub(kp,ki,kd,tf,u,(*(str->f))(kp,ki,kd,tf,u)<=str->lower_ub);
+
     CtcFwdBwd ctc1(infub);
+    bool ctc2empty(false);
 
 
     IntervalVector box(elem->box.size()+1);
@@ -243,11 +255,12 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
     }
     double nbit(0),nbitmax;
     if(midp)
-        nbitmax = 1000000000;
+        nbitmax = 100000000000;
     else
-        nbitmax = 10;
+        nbitmax = 5;
 
     while(!elem->heap.empty()) {
+        ctc2empty = false;
 //        cout<<"lower_ub: "<<lower_ub<<endl;
 
 //    cout<<"nb box to treat: "<<count<<endl;
@@ -268,40 +281,43 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
         if(midp){
             //********box eval********
             IntervalVector cres = str->f->eval_vector(box);
-            IntervalVector ctcbox(box);
-//            if (cres[0].lb()<str->lower_ub)
-//            {
-//                ctc1.contract(box);
-//            }
-            if(!ctcbox.is_empty())
+            if(cres[0].lb()<str->lower_ub)
             {
-                //            cout<<"res for box "<<box<<" : "<<res<<endl;
-//                IntervalVector round_box(elem->box.size()+1);
-//                round_box[0] = ibex::pow(Interval(10),elemtmp->box[0]);
-//                for(unsigned i=1;i<=elem->box.size();i++) {
-//                    round_box[i] = box[i-1];
-//                }
-//                res[0] =str->bernwfree.at(0).eval_bernstein(round_box)[0]*str->berncst.at(0).eval_bernstein(IntervalVector(1,round_box[0]))[0];
-//                for(unsigned i=1;i<str->bernwfree.size();i++)
-//                    res[0] = max(res[0],str->bernwfree.at(i).eval_bernstein(round_box)[0]*str->berncst.at(i).eval_bernstein(IntervalVector(1,round_box[0]))[0]);
-//                ////            cout<<"bernstein res for box "<<round_box<<" : "<<res<<endl;
-//                //            res.operator &=(str->f->eval_vector(box));
+                IntervalVector ctcbox(box);
+                if (str->lower_ub!=POS_INFINITY)
+                {
+//                    ctc1.contract(box);
+                }
+                if(!ctcbox.is_empty())
+                {
+                    //            cout<<"res for box "<<box<<" : "<<res<<endl;
+                    //                IntervalVector round_box(elem->box.size()+1);
+                    //                round_box[0] = ibex::pow(Interval(10),elemtmp->box[0]);
+                    //                for(unsigned i=1;i<=elem->box.size();i++) {
+                    //                    round_box[i] = box[i-1];
+                    //                }
+                    //                res[0] =str->bernwfree.at(0).eval_bernstein(round_box)[0]-str->berncst.at(0).eval_bernstein(IntervalVector(1,round_box[0]))[0];
+                    //                for(unsigned i=1;i<str->bernwfree.size();i++)
+                    //                    res[0] = max(res[0],str->bernwfree.at(i).eval_bernstein(round_box)[0]-str->berncst.at(i).eval_bernstein(IntervalVector(1,round_box[0]))[0]);
+                    //                ////            cout<<"bernstein res for box "<<round_box<<" : "<<res<<endl;
+                    //                //            res.operator &=(str->f->eval_vector(box));
 
-//                if(res.is_disjoint(cres)) {
-//                    cout<<"ERROR: disjoint classic and bern eval"<<endl;
-//                    cout<<"cres: "<<cres<<" , res: "<<res<<endl;
-//                }
-//                else
-//                    res.operator &=(cres);
-                res = cres;
+                    //                if(res.is_disjoint(cres)) {
+                    //                    cout<<"ERROR: disjoint classic and bern eval"<<endl;
+                    //                    cout<<"cres: "<<cres<<" , res: "<<res<<endl;
+                    //                }
+                    //                else
+                    //                    res.operator &=(cres);
+                    res = cres;
 
-                //****** mid w eval *******
-                box[elem->box.size()] = elemtmp->box.mid()[0];
-                resmid = str->f->eval_vector(box);
-            }
-            else{
-                cout<<"w failure midpt"<<endl;
-                resmid[0]=Interval(1000);
+                    //****** mid w eval *******
+                    box[elem->box.size()] = elemtmp->box.mid()[0];
+                    resmid = str->f->eval_vector(box);
+                }
+                else{
+                    cout<<"w failure midpt"<<endl;
+                    ctc2empty = true;
+                }
             }
 //            if(!resmid[0].is_subset(res[0]))
 //            resmid = res.lb();
@@ -320,40 +336,43 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
 
             if (res[0].lb()<str->lower_ub)
             {
-//                cout<<"ctcbox: "<<ctcbox;
-                ctc1.contract(ctcbox);
-//                cout<<" after contraction: "<<ctcbox<<endl;
-            }
-            if(ctcbox!=box)
-                cout<<"contraction hit! box: "<<box<<" ctcbox: "<<ctcbox<<endl;
-            if(!ctcbox.is_empty())
-            {
-                //****** mid w eval *******
-                box[elem->box.size()] = elemtmp->box.mid()[0];
-                IntervalVector cresmid = str->f->eval_vector(box);
-////                //            cout<<"resmid for box "<<box<<" : "<<cresmid[0]<<endl;
-//                box[elem->box.size()] = ibex::pow(Interval(10),box[elem->box.size()]);
-//                resmid[0] =str->bernwset.at(0).eval_bernstein(box)[0]*str->berncst.at(0).eval_bernstein(IntervalVector(1,box[elem->box.size()]))[0];
-//                for(unsigned i=1;i<str->bernwset.size();i++)
-//                    resmid[0] = max(resmid[0],str->bernwset.at(i).eval_bernstein(box)[0]*str->berncst.at(i).eval_bernstein(IntervalVector(1,box[elem->box.size()]))[0]);
-//                //           cout<<"bern resmid for box "<<box<<": "<<resmid<<endl;
+                if(str->lower_ub!=POS_INFINITY)
+                {
+                    //                cout<<"ctcbox: "<<ctcbox;
+//                    ctc1.contract(ctcbox);
+                    //                cout<<" after contraction: "<<ctcbox<<endl;
+                }
+                if(ctcbox!=box)
+                    cout<<"contraction hit! box: "<<box<<" ctcbox: "<<ctcbox<<endl;
+                if(!ctcbox.is_empty())
+                {
+                    //****** mid w eval *******
+                    box[elem->box.size()] = elemtmp->box.mid()[0];
+                    IntervalVector cresmid = str->f->eval_vector(box);
+                    ////                //            cout<<"resmid for box "<<box<<" : "<<cresmid[0]<<endl;
+                    //                box[elem->box.size()] = ibex::pow(Interval(10),box[elem->box.size()]);
+                    //                resmid[0] =str->bernwset.at(0).eval_bernstein(box)[0]-str->berncst.at(0).eval_bernstein(IntervalVector(1,box[elem->box.size()]))[0];
+                    //                for(unsigned i=1;i<str->bernwset.size();i++)
+                    //                    resmid[0] = max(resmid[0],str->bernwset.at(i).eval_bernstein(box)[0]-str->berncst.at(i).eval_bernstein(IntervalVector(1,box[elem->box.size()]))[0]);
+                    //                //           cout<<"bern resmid for box "<<box<<": "<<resmid<<endl;
 
-//                if(resmid.is_disjoint(cresmid)) {
-//                    cout<<"ERROR: disjoint classic and bern eval"<<endl;
-//                    cout<<"cresmid: "<<cresmid<<" , resmid: "<<resmid<<endl;
-//                }
-//                else
-//                    resmid.operator &=(cresmid);
-                resmid=cresmid;
-            }
-            else{
-                cout<<"w failure"<<endl;
-                resmid[0]=Interval(10000);
+                    //                if(resmid.is_disjoint(cresmid)) {
+                    //                    cout<<"ERROR: disjoint classic and bern eval"<<endl;
+                    //                    cout<<"cresmid: "<<cresmid<<" , resmid: "<<resmid<<endl;
+                    //                }
+                    //                else
+                    //                    resmid.operator &=(cresmid);
+                    resmid=cresmid;
+                }
+                else{
+                    cout<<"w failure"<<endl;
+                    ctc2empty = true;
+                }
             }
 
         }
 //        cout<<"resmid: "<<resmid<<endl;
-        if(resmid[0].lb()>str->lower_ub) {
+        if(resmid[0].lb()>str->lower_ub || ctc2empty) {
 //            cout<<"stop slave because w failure"<<endl;
             if(!midp){
                 elem->fmax = IntervalVector(1,Interval::EMPTY_SET); // box K does not minimize the maximum
@@ -405,6 +424,7 @@ double best_upper_bound_forall_w(optiw * str,list_elem * elem,bool midp,Vector m
 
     }
 
+
     return upper_ub;
 }
 
@@ -436,6 +456,63 @@ Vector randpt(IntervalVector box, int size) {
     return pt;
 }
 
+bool check_unstability(pair<icomplex,Interval> * eigval, int nbeig){
+
+//    cout<<"checking stability"<<endl;
+//    bool unstab[nbeig]; // store true if the enclosure has a real part positive
+    for(int i=0;i<nbeig;i++) {
+//        cout<<"center: "<<eigval[i].first<<" radius: "<<eigval[i].second<<endl;
+        if(!(eigval[i].first.real_part().lb()>0)) // center must have positive real part
+        {
+//            unstab = false;
+            continue;
+        }
+        Interval dist = eigval[i].first.real_part()-eigval[i].second.ub();
+        if(!(dist.lb()>0)) // the real part of the enclosure must be positive
+        {
+//            unstab = false;
+            continue;
+        }
+//        unstab = true;
+        return true;
+    }
+    return false;
+//    for(int i=0;i<nbeig;i++) { // check if unstab discs intersects other
+//        for(int j=0;j<nbeig;j++) {
+//            if(j!=i)
+//        }
+
+//    }
+}
+
+
+bool check_stability_root(pair<icomplex,Interval> * eigval, int nbeig){
+
+//    cout<<"checking stability"<<endl;
+//    bool unstab[nbeig]; // store true if the enclosure has a real part positive
+    for(int i=0;i<nbeig;i++) {
+//        cout<<"center: "<<eigval[i].first<<" radius: "<<eigval[i].second<<endl;
+        if(eigval[i].first.real_part().ub()>0) // center must have positive real part
+        {
+            return false;
+        }
+        Interval dist = eigval[i].first.real_part()+eigval[i].second.ub();
+        if(dist.ub()>0) // the real part of the enclosure must be positive
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool check_stability_routh(vector<Function*> routh_func,const IntervalVector& box) {
+    for(unsigned i=0;i<routh_func.size();i++) {
+        if(routh_func.at(i)->eval_vector(box)[0].lb()<0)
+            return false;
+    }
+    return true;
+}
+
 int main() {
 
     std::srand(std::time(0));
@@ -443,8 +520,8 @@ int main() {
     IntervalVector Iniprob(2,Interval(-10,10));
     IntervalVector Iniprob2(1,Interval(-0.1,0.1));
     // precision:
-    double prec(0.1);
-    double preclwmin = 1.e-4;// dynamic initialization in loop
+    double prec(0.001);
+    double preclwmin = 1.e-9;// dynamic initialization in loop
     double stop_criterion(1); // stop if distance between uplo and loup lower than stop_criterion
 
     // init boxes
@@ -471,24 +548,34 @@ int main() {
     Function Tw1z2w("kp","ki","kd","tf","w","1/((kd*w^4-(33.75)*w^6*tf+w^4*tf*kp-(5.9999999999999999995e-5)*w^2*kp+(0.14399999999999999999)*w^4*tf-(0.0036)*w^2*tf*kp-w^2*ki+(0.0036)*ki-(5.9999999999999999995e-5)*w^2*ki*tf+(0.0023999999999999999998)*w^4-(0.0036)*kd*w^2)^2+(w^3*ki*tf+(0.14399999999999999999)*w^3-(0.0036)*w*ki*tf+w^3*kp-(0.0023999999999999999998)*w^5*tf-(5.9999999999999999995e-5)*w*ki-(33.75)*w^5-(0.0036)*w*kp+(5.9999999999999999995e-5)*w^3*tf*kp+(5.9999999999999999995e-5)*kd*w^3)^2)*((-(0.14399999999999999999)*kd*w^4-(0.14399999999999999999)*w^4*tf*kp+(33.75)*kd*w^6+(0.14399999999999999999)*w^2*ki-(0.0023999999999999999998)*w^4*kp+(33.75)*w^6*tf*kp-(33.75)*w^4*ki-(0.0023999999999999999998)*w^4*ki*tf)^2+(-(0.0023999999999999999998)*kd*w^5+(0.14399999999999999999)*w^3*ki*tf+(0.0023999999999999999998)*w^3*ki-(0.0023999999999999999998)*w^5*tf*kp+(0.14399999999999999999)*w^3*kp-(33.75)*w^5*ki*tf-(33.75)*w^5*kp)^2)");
     Function Tw2z2w("kp","ki","kd","tf","w","1/((kd*w^4-(33.75)*w^6*tf+w^4*tf*kp-(5.9999999999999999995e-5)*w^2*kp+(0.14399999999999999999)*w^4*tf-(0.0036)*w^2*tf*kp-w^2*ki+(0.0036)*ki-(5.9999999999999999995e-5)*w^2*ki*tf+(0.0023999999999999999998)*w^4-(0.0036)*kd*w^2)^2+(w^3*ki*tf+(0.14399999999999999999)*w^3-(0.0036)*w*ki*tf+w^3*kp-(0.0023999999999999999998)*w^5*tf-(5.9999999999999999995e-5)*w*ki-(33.75)*w^5-(0.0036)*w*kp+(5.9999999999999999995e-5)*w^3*tf*kp+(5.9999999999999999995e-5)*kd*w^3)^2)*((10*w^3*ki*tf-(0.036)*w*ki*tf+10*w^3*kp-(5.9999999999999999995e-4)*w*ki-(0.036)*w*kp+(5.9999999999999999995e-4)*w^3*tf*kp+(5.9999999999999999995e-4)*kd*w^3)^2+(10*kd*w^4+10*w^4*tf*kp-(5.9999999999999999995e-4)*w^2*kp-(0.036)*w^2*tf*kp-10*w^2*ki+(0.036)*ki-(5.9999999999999999995e-4)*w^2*ki*tf-(0.036)*kd*w^2)^2)");
     cout<<"w ok"<<endl;
-    Function Tw1z1u("kp","ki","kd","tf","u","sqrt(1/((kd*exp(ln(10)*4*u)-33.75*exp(ln(10)*6*u)*tf+exp(ln(10)*4*u)*tf*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*kp+0.14399999999999999999*exp(ln(10)*4*u)*tf-0.0036*exp(ln(10)*2*u)*tf*kp-exp(ln(10)*2*u)*ki+0.0036*ki-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*ki*tf+0.0023999999999999999998*exp(ln(10)*4*u)-0.0036*kd*exp(ln(10)*2*u))^2+(exp(ln(10)*3*u)*ki*tf+0.14399999999999999999*exp(ln(10)*3*u)-0.0036*exp(ln(10)*u)*ki*tf+exp(ln(10)*3*u)*kp-0.0023999999999999999998*exp(ln(10)*5*u)*tf-(5.9999999999999999995*10^(-5))*exp(ln(10)*u)*ki-33.75*exp(ln(10)*5*u)-0.0036*exp(ln(10)*u)*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u))^2)*(((33.75)*exp(ln(10)*6*u)*tf-0.14399999999999999999*exp(ln(10)*4*u)*tf-0.0023999999999999999998*exp(ln(10)*4*u))^2+((0.14399999999999999999)*exp(ln(10)*3*u)-0.0023999999999999999998*exp(ln(10)*5*u)*tf-33.75*exp(ln(10)*5*u))^2))");
-    cout<<"1";
-    Function Tw2z1u("kp","ki","kd","tf","u","sqrt(((10*exp(ln(10)*4*u)*tf-(5.9999999999999999995*10^(-4))*exp(ln(10)*2*u)-0.036*exp(ln(10)*2*u)*tf)^2+(-0.036*exp(ln(10)*u)+10*exp(ln(10)*3*u)+(5.9999999999999999995*10^(-4))*exp(ln(10)*3*u)*tf)^2)*1/((kd*exp(ln(10)*4*u)-33.75*exp(ln(10)*6*u)*tf+exp(ln(10)*4*u)*tf*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*kp+0.14399999999999999999*exp(ln(10)*4*u)*tf-0.0036*exp(ln(10)*2*u)*tf*kp-exp(ln(10)*2*u)*ki+0.0036*ki-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*ki*tf+0.0023999999999999999998*exp(ln(10)*4*u)-0.0036*kd*exp(ln(10)*2*u))^2+(exp(ln(10)*3*u)*ki*tf+0.14399999999999999999*exp(ln(10)*3*u)-0.0036*exp(ln(10)*u)*ki*tf+exp(ln(10)*3*u)*kp-0.0023999999999999999998*exp(ln(10)*5*u)*tf-(5.9999999999999999995*10^(-5))*exp(ln(10)*u)*ki-33.75*exp(ln(10)*5*u)-0.0036*exp(ln(10)*u)*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u))^2))");
+//    Function Tw1z1u("kp","ki","kd","tf","u","((-0.022781951999999999998*exp(ln(10)*4*u)+5.3348999999999999998*exp(ln(10)*6*u)-33.75*exp(ln(10)*8*u)*tf+0.56557920000000000004*exp(ln(10)*6*u)*tf-0.0017971199999999999999*exp(ln(10)*4*u)*tf)^2+(-0.56557920000000000004*exp(ln(10)*5*u)+33.75*exp(ln(10)*7*u)+5.3348999999999999998*exp(ln(10)*7*u)*tf-0.022781951999999999998*exp(ln(10)*5*u)*tf+0.0017971199999999999999*exp(ln(10)*3*u))^2)*1/((-3.162*exp(ln(10)*5*u)*kp-0.49766126399999999997*exp(ln(10)*5*u)-0.08904972*exp(ln(10)*5*u)*tf*kp-(4.4928*10^(-6))*exp(ln(10)*u)*ki*tf+106.7175*exp(ln(10)*7*u)-(3.1997087999999999999*10^(-4))*exp(ln(10)*u)*ki+(3.1997087999999999999*10^(-4))*kd*exp(ln(10)*3*u)+0.012636531599999999999*exp(ln(10)*3*u)*ki*tf-(4.4928*10^(-6))*exp(ln(10)*u)*kp+0.08904972*exp(ln(10)*3*u)*ki+3.0066138*exp(ln(10)*7*u)*tf-0.08904972*kd*exp(ln(10)*5*u)+(3.1997087999999999999*10^(-4))*exp(ln(10)*3*u)*tf*kp-0.012798835199999999999*exp(ln(10)*5*u)*tf+0.012636531599999999999*exp(ln(10)*3*u)*kp-3.162*exp(ln(10)*5*u)*ki*tf+(1.7971199999999999998*10^(-4))*exp(ln(10)*3*u))^2+((4.4928*10^(-6))*exp(ln(10)*2*u)*tf*kp-0.012798835199999999999*exp(ln(10)*4*u)-0.08904972*exp(ln(10)*4*u)*kp+3.0066138*exp(ln(10)*6*u)-0.012636531599999999999*exp(ln(10)*4*u)*tf*kp+(4.4928*10^(-6))*kd*exp(ln(10)*2*u)-3.162*exp(ln(10)*4*u)*ki-(4.4928*10^(-6))*ki+(3.1997087999999999999*10^(-4))*exp(ln(10)*2*u)*kp-106.7175*exp(ln(10)*8*u)*tf-0.08904972*exp(ln(10)*4*u)*ki*tf+3.162*kd*exp(ln(10)*6*u)+0.49766126399999999997*exp(ln(10)*6*u)*tf-0.012636531599999999999*kd*exp(ln(10)*4*u)+3.162*exp(ln(10)*6*u)*tf*kp+0.012636531599999999999*exp(ln(10)*2*u)*ki+(3.1997087999999999999*10^(-4))*exp(ln(10)*2*u)*ki*tf-(1.7971199999999999998*10^(-4))*exp(ln(10)*4*u)*tf)^2)");
+//    Function Tw2z1u("kp","ki","kd","tf","u","1/((-3.162*exp(ln(10)*5*u)*kp-0.49766126399999999997*exp(ln(10)*5*u)-0.08904972*exp(ln(10)*5*u)*tf*kp-(4.4928*10^(-6))*exp(ln(10)*u)*ki*tf+106.7175*exp(ln(10)*7*u)-(3.1997087999999999999*10^(-4))*exp(ln(10)*u)*ki+(3.1997087999999999999*10^(-4))*kd*exp(ln(10)*3*u)+0.012636531599999999999*exp(ln(10)*3*u)*ki*tf-(4.4928*10^(-6))*exp(ln(10)*u)*kp+0.08904972*exp(ln(10)*3*u)*ki+3.0066138*exp(ln(10)*7*u)*tf-0.08904972*kd*exp(ln(10)*5*u)+(3.1997087999999999999*10^(-4))*exp(ln(10)*3*u)*tf*kp-0.012798835199999999999*exp(ln(10)*5*u)*tf+0.012636531599999999999*exp(ln(10)*3*u)*kp-3.162*exp(ln(10)*5*u)*ki*tf+(1.7971199999999999998*10^(-4))*exp(ln(10)*3*u))^2+((4.4928*10^(-6))*exp(ln(10)*2*u)*tf*kp-0.012798835199999999999*exp(ln(10)*4*u)-0.08904972*exp(ln(10)*4*u)*kp+3.0066138*exp(ln(10)*6*u)-0.012636531599999999999*exp(ln(10)*4*u)*tf*kp+(4.4928*10^(-6))*kd*exp(ln(10)*2*u)-3.162*exp(ln(10)*4*u)*ki-(4.4928*10^(-6))*ki+(3.1997087999999999999*10^(-4))*exp(ln(10)*2*u)*kp-106.7175*exp(ln(10)*8*u)*tf-0.08904972*exp(ln(10)*4*u)*ki*tf+3.162*kd*exp(ln(10)*6*u)+0.49766126399999999997*exp(ln(10)*6*u)*tf-0.012636531599999999999*kd*exp(ln(10)*4*u)+3.162*exp(ln(10)*6*u)*tf*kp+0.012636531599999999999*exp(ln(10)*2*u)*ki+(3.1997087999999999999*10^(-4))*exp(ln(10)*2*u)*ki*tf-(1.7971199999999999998*10^(-4))*exp(ln(10)*4*u)*tf)^2)*(((1.5805999999999999999)*exp(ln(10)*4*u)-(4.4927999999999999998*10^(-4))*exp(ln(10)*2*u)*tf-10*exp(ln(10)*6*u)*tf-0.005695488*exp(ln(10)*2*u)+0.16089480000000000001*exp(ln(10)*4*u)*tf)^2+(10*exp(ln(10)*5*u)-0.005695488*exp(ln(10)*3*u)*tf+(4.4927999999999999998*10^(-4))*exp(ln(10)*u)+1.5805999999999999999*exp(ln(10)*5*u)*tf-0.16089480000000000001*exp(ln(10)*3*u))^2)");
+//    cout<<"2";
+//    Function Tw1z2u("kp","ki","kd","tf","u","1/((-14.2128*exp(ln(10)*2*u)*tf*kp+22.271039999999999998*exp(ln(10)*4*u)+88.86006*exp(ln(10)*4*u)*kp-2999.0273999999999999*exp(ln(10)*6*u)+3948.0089316000000002*exp(ln(10)*4*u)*tf*kp-14.2128*kd*exp(ln(10)*2*u)+exp(ln(10)*4*u)*ki+14.2128*ki-0.55677599999999999997*exp(ln(10)*2*u)*kp+33.75*exp(ln(10)*8*u)*tf+88.86006*exp(ln(10)*4*u)*ki*tf-kd*exp(ln(10)*6*u)-133245.357264*exp(ln(10)*6*u)*tf+3948.0089316000000002*kd*exp(ln(10)*4*u)-exp(ln(10)*6*u)*tf*kp-3948.0089316000000002*exp(ln(10)*2*u)*ki-0.55677599999999999997*exp(ln(10)*2*u)*ki*tf+568.51199999999999996*exp(ln(10)*4*u)*tf)^2+(exp(ln(10)*5*u)*kp+133245.357264*exp(ln(10)*5*u)+88.86006*exp(ln(10)*5*u)*tf*kp+14.2128*exp(ln(10)*u)*ki*tf-33.75*exp(ln(10)*7*u)+0.55677599999999999997*exp(ln(10)*u)*ki-0.55677599999999999997*kd*exp(ln(10)*3*u)-3948.0089316000000002*exp(ln(10)*3*u)*ki*tf+14.2128*exp(ln(10)*u)*kp-88.86006*exp(ln(10)*3*u)*ki-2999.0273999999999999*exp(ln(10)*7*u)*tf+88.86006*kd*exp(ln(10)*5*u)-0.55677599999999999997*exp(ln(10)*3*u)*tf*kp+22.271039999999999998*exp(ln(10)*5*u)*tf-3948.0089316000000002*exp(ln(10)*3*u)*kp+exp(ln(10)*5*u)*ki*tf-568.51199999999999996*exp(ln(10)*3*u))^2)*((-1332.6153263999999999*exp(ln(10)*5*u)*kp-1.3743359999999999999*exp(ln(10)*5*u)*tf*kp-299.9049*exp(ln(10)*5*u)*ki+33.75*exp(ln(10)*7*u)*kp+5.6851199999999999994*exp(ln(10)*3*u)*ki*tf+33.75*exp(ln(10)*7*u)*ki*tf+299.9049*kd*exp(ln(10)*7*u)+1.3743359999999999999*exp(ln(10)*3*u)*ki-1.3743359999999999999*kd*exp(ln(10)*5*u)+299.9049*exp(ln(10)*7*u)*tf*kp+5.6851199999999999994*exp(ln(10)*3*u)*kp-1332.6153263999999999*exp(ln(10)*5*u)*ki*tf)^2+(-33.75*kd*exp(ln(10)*8*u)+299.9049*exp(ln(10)*6*u)*ki*tf+33.75*exp(ln(10)*6*u)*ki-1.3743359999999999999*exp(ln(10)*4*u)*kp-5.6851199999999999994*exp(ln(10)*4*u)*tf*kp+299.9049*exp(ln(10)*6*u)*kp-1332.6153263999999999*exp(ln(10)*4*u)*ki-1.3743359999999999999*exp(ln(10)*4*u)*ki*tf-33.75*exp(ln(10)*8*u)*tf*kp+1332.6153263999999999*kd*exp(ln(10)*6*u)-5.6851199999999999994*kd*exp(ln(10)*4*u)+1332.6153263999999999*exp(ln(10)*6*u)*tf*kp+5.6851199999999999994*exp(ln(10)*2*u)*ki)^2)");
+//    cout<<"3";
+//    Function Tw2z2u("kp","ki","kd","tf","u","1/((-14.2128*exp(ln(10)*2*u)*tf*kp+22.271039999999999998*exp(ln(10)*4*u)+88.86006*exp(ln(10)*4*u)*kp-2999.0273999999999999*exp(ln(10)*6*u)+3948.0089316000000002*exp(ln(10)*4*u)*tf*kp-14.2128*kd*exp(ln(10)*2*u)+exp(ln(10)*4*u)*ki+14.2128*ki-0.55677599999999999997*exp(ln(10)*2*u)*kp+33.75*exp(ln(10)*8*u)*tf+88.86006*exp(ln(10)*4*u)*ki*tf-kd*exp(ln(10)*6*u)-133245.357264*exp(ln(10)*6*u)*tf+3948.0089316000000002*kd*exp(ln(10)*4*u)-exp(ln(10)*6*u)*tf*kp-3948.0089316000000002*exp(ln(10)*2*u)*ki-0.55677599999999999997*exp(ln(10)*2*u)*ki*tf+568.51199999999999996*exp(ln(10)*4*u)*tf)^2+(exp(ln(10)*5*u)*kp+133245.357264*exp(ln(10)*5*u)+88.86006*exp(ln(10)*5*u)*tf*kp+14.2128*exp(ln(10)*u)*ki*tf-33.75*exp(ln(10)*7*u)+0.55677599999999999997*exp(ln(10)*u)*ki-0.55677599999999999997*kd*exp(ln(10)*3*u)-3948.0089316000000002*exp(ln(10)*3*u)*ki*tf+14.2128*exp(ln(10)*u)*kp-88.86006*exp(ln(10)*3*u)*ki-2999.0273999999999999*exp(ln(10)*7*u)*tf+88.86006*kd*exp(ln(10)*5*u)-0.55677599999999999997*exp(ln(10)*3*u)*tf*kp+22.271039999999999998*exp(ln(10)*5*u)*tf-3948.0089316000000002*exp(ln(10)*3*u)*kp+exp(ln(10)*5*u)*ki*tf-568.51199999999999996*exp(ln(10)*3*u))^2)*(((1.42128)*exp(ln(10)*2*u)*tf*kp-88.860600000000000004*exp(ln(10)*4*u)*kp-394.8413316*exp(ln(10)*4*u)*tf*kp+1.42128*kd*exp(ln(10)*2*u)-10*exp(ln(10)*4*u)*ki-1.42128*ki+0.343584*exp(ln(10)*2*u)*kp-88.860600000000000004*exp(ln(10)*4*u)*ki*tf+10*kd*exp(ln(10)*6*u)-394.8413316*kd*exp(ln(10)*4*u)+10*exp(ln(10)*6*u)*tf*kp+394.8413316*exp(ln(10)*2*u)*ki+0.343584*exp(ln(10)*2*u)*ki*tf)^2+(10*exp(ln(10)*5*u)*kp+88.860600000000000004*exp(ln(10)*5*u)*tf*kp+1.42128*exp(ln(10)*u)*ki*tf+0.343584*exp(ln(10)*u)*ki-0.343584*kd*exp(ln(10)*3*u)-394.8413316*exp(ln(10)*3*u)*ki*tf+1.42128*exp(ln(10)*u)*kp-88.860600000000000004*exp(ln(10)*3*u)*ki+88.860600000000000004*kd*exp(ln(10)*5*u)-0.343584*exp(ln(10)*3*u)*tf*kp-394.8413316*exp(ln(10)*3*u)*kp+10*exp(ln(10)*5*u)*ki*tf)^2)");
+//    cout<<"u ok"<<endl;
+
+    //pid tf free and butter filt
+
+    Function Tw1z1u("kp","ki","kd","tf","u","((-(2.6423999999999999998*10^(-6))*exp(ln(10)*4*u)*tf+0.0020611346999999999999*exp(ln(10)*6*u)-0.43403072039999999999*exp(ln(10)*8*u)*tf-(4.4057999999999999997*10^(-6))*exp(ln(10)*4*u)+0.0018567771959999999998*exp(ln(10)*6*u)*tf+33.75*exp(ln(10)*10*u)*tf-0.24104624999999999999*exp(ln(10)*8*u))^2+(-(4.4057999999999999997*10^(-6))*exp(ln(10)*5*u)*tf+0.0020611346999999999999*exp(ln(10)*7*u)*tf+0.43403072039999999999*exp(ln(10)*7*u)-0.0018567771959999999998*exp(ln(10)*5*u)+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)-0.24104624999999999999*exp(ln(10)*9*u)*tf-33.75*exp(ln(10)*9*u))^2)*1/(((4.91948*10^(-5))*exp(ln(10)*2*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*ki*tf-exp(ln(10)*8*u)*tf*kp-(2.6423999999999999998*10^(-6))*exp(ln(10)*4*u)*tf+0.012168*kd*exp(ln(10)*6*u)+0.0020611346999999999999*exp(ln(10)*6*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*kp-0.43403072039999999999*exp(ln(10)*8*u)*tf-(4.91948*10^(-5))*kd*exp(ln(10)*4*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*ki*tf-(4.4057999999999999997*10^(-6))*exp(ln(10)*4*u)-(6.606*10^(-8))*ki+0.012168*exp(ln(10)*6*u)*tf*kp+0.0018567771959999999998*exp(ln(10)*6*u)*tf+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*ki*tf+(6.606*10^(-8))*kd*exp(ln(10)*2*u)+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*kp-0.012168*exp(ln(10)*4*u)*ki+(6.606*10^(-8))*exp(ln(10)*2*u)*tf*kp+33.75*exp(ln(10)*10*u)*tf-0.24104624999999999999*exp(ln(10)*8*u)-kd*exp(ln(10)*8*u)+exp(ln(10)*6*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*kp-(4.91948*10^(-5))*exp(ln(10)*4*u)*tf*kp)^2+((4.91948*10^(-5))*exp(ln(10)*3*u)*kp+(1.1009999999999999999*10^(-9))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*7*u)*tf*kp-(4.4057999999999999997*10^(-6))*exp(ln(10)*5*u)*tf+0.0020611346999999999999*exp(ln(10)*7*u)*tf+(5.1408*10^(-7))*exp(ln(10)*3*u)*ki+0.43403072039999999999*exp(ln(10)*7*u)+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*7*u)-0.012168*exp(ln(10)*5*u)*ki*tf-(5.1408*10^(-7))*kd*exp(ln(10)*5*u)-0.0018567771959999999999*exp(ln(10)*5*u)+exp(ln(10)*7*u)*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*5*u)*ki+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)+(1.1009999999999999999*10^(-9))*kd*exp(ln(10)*3*u)-(6.606*10^(-8))*exp(ln(10)*u)*ki*tf-0.24104624999999999999*exp(ln(10)*9*u)*tf-33.75*exp(ln(10)*9*u)-(6.606*10^(-8))*exp(ln(10)*u)*kp-(5.1408*10^(-7))*exp(ln(10)*5*u)*tf*kp-0.012168*exp(ln(10)*5*u)*kp+(4.91948*10^(-5))*exp(ln(10)*3*u)*ki*tf+exp(ln(10)*7*u)*ki*tf-(1.1009999999999999999*10^(-9))*exp(ln(10)*u)*ki)^2)");
+    Function Tw2z1u("kp","ki","kd","tf","u","(((5.626118*10^(-4))*exp(ln(10)*5*u)*tf+(6.606*10^(-7))*exp(ln(10)*u)-0.07131*exp(ln(10)*7*u)*tf-10*exp(ln(10)*7*u)+0.12193424259999999999*exp(ln(10)*5*u)-(4.92866174*10^(-4))*exp(ln(10)*3*u)-(1.10145*10^(-6))*exp(ln(10)*3*u)*tf)^2+((4.92866174*10^(-4))*exp(ln(10)*4*u)*tf-0.07131*exp(ln(10)*6*u)+10*exp(ln(10)*8*u)*tf+(5.626118*10^(-4))*exp(ln(10)*4*u)-0.1219342426*exp(ln(10)*6*u)*tf-(6.606*10^(-7))*exp(ln(10)*2*u)*tf-(1.10145*10^(-6))*exp(ln(10)*2*u))^2)*1/(((4.91948*10^(-5))*exp(ln(10)*2*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*ki*tf-exp(ln(10)*8*u)*tf*kp-(2.6423999999999999998*10^(-6))*exp(ln(10)*4*u)*tf+0.012168*kd*exp(ln(10)*6*u)+0.0020611346999999999999*exp(ln(10)*6*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*kp-0.43403072039999999999*exp(ln(10)*8*u)*tf-(4.91948*10^(-5))*kd*exp(ln(10)*4*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*ki*tf-(4.4057999999999999997*10^(-6))*exp(ln(10)*4*u)-(6.606*10^(-8))*ki+0.012168*exp(ln(10)*6*u)*tf*kp+0.0018567771959999999998*exp(ln(10)*6*u)*tf+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*ki*tf+(6.606*10^(-8))*kd*exp(ln(10)*2*u)+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*kp-0.012168*exp(ln(10)*4*u)*ki+(6.606*10^(-8))*exp(ln(10)*2*u)*tf*kp+33.75*exp(ln(10)*10*u)*tf-0.24104624999999999999*exp(ln(10)*8*u)-kd*exp(ln(10)*8*u)+exp(ln(10)*6*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*kp-(4.91948*10^(-5))*exp(ln(10)*4*u)*tf*kp)^2+((4.91948*10^(-5))*exp(ln(10)*3*u)*kp+(1.1009999999999999999*10^(-9))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*7*u)*tf*kp-(4.4057999999999999997*10^(-6))*exp(ln(10)*5*u)*tf+0.0020611346999999999999*exp(ln(10)*7*u)*tf+(5.1408*10^(-7))*exp(ln(10)*3*u)*ki+0.43403072039999999999*exp(ln(10)*7*u)+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*7*u)-0.012168*exp(ln(10)*5*u)*ki*tf-(5.1408*10^(-7))*kd*exp(ln(10)*5*u)-0.0018567771959999999998*exp(ln(10)*5*u)+exp(ln(10)*7*u)*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*5*u)*ki+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)+(1.1009999999999999999*10^(-9))*kd*exp(ln(10)*3*u)-(6.606*10^(-8))*exp(ln(10)*u)*ki*tf-0.24104624999999999999*exp(ln(10)*9*u)*tf-33.75*exp(ln(10)*9*u)-(6.606*10^(-8))*exp(ln(10)*u)*kp-(5.1408*10^(-7))*exp(ln(10)*5*u)*tf*kp-0.012168*exp(ln(10)*5*u)*kp+(4.91948*10^(-5))*exp(ln(10)*3*u)*ki*tf+exp(ln(10)*7*u)*ki*tf-(1.1009999999999999999*10^(-9))*exp(ln(10)*u)*ki)^2)");
     cout<<"2";
-    Function Tw1z2u("kp","ki","kd","tf","u","sqrt(1/((kd*exp(ln(10)*4*u)-33.75*exp(ln(10)*6*u)*tf+exp(ln(10)*4*u)*tf*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*kp+0.14399999999999999999*exp(ln(10)*4*u)*tf-0.0036*exp(ln(10)*2*u)*tf*kp-exp(ln(10)*2*u)*ki+0.0036*ki-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*ki*tf+0.0023999999999999999998*exp(ln(10)*4*u)-0.0036*kd*exp(ln(10)*2*u))^2+(exp(ln(10)*3*u)*ki*tf+0.14399999999999999999*exp(ln(10)*3*u)-0.0036*exp(ln(10)*u)*ki*tf+exp(ln(10)*3*u)*kp-0.0023999999999999999998*exp(ln(10)*5*u)*tf-(5.9999999999999999995*10^(-5))*exp(ln(10)*u)*ki-33.75*exp(ln(10)*5*u)-0.0036*exp(ln(10)*u)*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u))^2)*((-0.14399999999999999999*kd*exp(ln(10)*4*u)-0.14399999999999999999*exp(ln(10)*4*u)*tf*kp+33.75*kd*exp(ln(10)*6*u)+0.14399999999999999999*exp(ln(10)*2*u)*ki-0.0023999999999999999998*exp(ln(10)*4*u)*kp+33.75*exp(ln(10)*6*u)*tf*kp-33.75*exp(ln(10)*4*u)*ki-0.0023999999999999999998*exp(ln(10)*4*u)*ki*tf)^2+(-0.0023999999999999999998*kd*exp(ln(10)*5*u)+0.14399999999999999999*exp(ln(10)*3*u)*ki*tf+0.0023999999999999999998*exp(ln(10)*3*u)*ki-0.0023999999999999999998*exp(ln(10)*5*u)*tf*kp+0.14399999999999999999*exp(ln(10)*3*u)*kp-33.75*exp(ln(10)*5*u)*ki*tf-33.75*exp(ln(10)*5*u)*kp)^2))");
+    Function Tw1z2u("kp","ki","kd","tf","u","(((2.6423999999999999998*10^(-6))*exp(ln(10)*2*u)*ki-(4.4039999999999999998*10^(-8))*exp(ln(10)*4*u)*ki*tf+33.75*kd*exp(ln(10)*10*u)-0.43317*exp(ln(10)*8*u)*tf*kp+0.0018531044999999999999*kd*exp(ln(10)*6*u)-(2.6423999999999999998*10^(-6))*kd*exp(ln(10)*4*u)+0.0018531044999999999999*exp(ln(10)*6*u)*tf*kp-0.0023999999999999999998*exp(ln(10)*8*u)*kp+(2.0563199999999999999*10^(-5))*exp(ln(10)*6*u)*ki*tf+(2.0563199999999999999*10^(-5))*exp(ln(10)*6*u)*kp-0.0018531044999999999999*exp(ln(10)*4*u)*ki-0.43317*kd*exp(ln(10)*8*u)-33.75*exp(ln(10)*8*u)*ki+0.43317*exp(ln(10)*6*u)*ki-(4.4039999999999999998*10^(-8))*exp(ln(10)*4*u)*kp-(2.6423999999999999998*10^(-6))*exp(ln(10)*4*u)*tf*kp-0.0023999999999999999998*exp(ln(10)*8*u)*ki*tf+33.75*exp(ln(10)*10*u)*tf*kp)^2+(-33.75*exp(ln(10)*9*u)*ki*tf+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)*kp+(2.0563199999999999999*10^(-5))*exp(ln(10)*7*u)*tf*kp+(4.4039999999999999998*10^(-8))*exp(ln(10)*3*u)*ki+(2.0563199999999999999*10^(-5))*kd*exp(ln(10)*7*u)-33.75*exp(ln(10)*9*u)*kp-0.0018531044999999999999*exp(ln(10)*5*u)*ki*tf-(4.4039999999999999998*10^(-8))*kd*exp(ln(10)*5*u)+0.43317*exp(ln(10)*7*u)*kp-(2.0563199999999999999*10^(-5))*exp(ln(10)*5*u)*ki-0.0023999999999999999998*kd*exp(ln(10)*9*u)-(4.4039999999999999998*10^(-8))*exp(ln(10)*5*u)*tf*kp+0.0023999999999999999998*exp(ln(10)*7*u)*ki-0.0018531044999999999999*exp(ln(10)*5*u)*kp+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)*ki*tf+0.43317*exp(ln(10)*7*u)*ki*tf-0.0023999999999999999998*exp(ln(10)*9*u)*tf*kp)^2)*1/(((4.91948*10^(-5))*exp(ln(10)*2*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*ki*tf-exp(ln(10)*8*u)*tf*kp-(2.6423999999999999998*10^(-6))*exp(ln(10)*4*u)*tf+0.012168*kd*exp(ln(10)*6*u)+0.0020611346999999999999*exp(ln(10)*6*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*kp-0.43403072039999999999*exp(ln(10)*8*u)*tf-(4.91948*10^(-5))*kd*exp(ln(10)*4*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*ki*tf-(4.4057999999999999997*10^(-6))*exp(ln(10)*4*u)-(6.606*10^(-8))*ki+0.012168*exp(ln(10)*6*u)*tf*kp+0.0018567771959999999999*exp(ln(10)*6*u)*tf+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*ki*tf+(6.606*10^(-8))*kd*exp(ln(10)*2*u)+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*kp-0.012168*exp(ln(10)*4*u)*ki+(6.606*10^(-8))*exp(ln(10)*2*u)*tf*kp+33.75*exp(ln(10)*10*u)*tf-0.24104624999999999999*exp(ln(10)*8*u)-kd*exp(ln(10)*8*u)+exp(ln(10)*6*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*kp-(4.91948*10^(-5))*exp(ln(10)*4*u)*tf*kp)^2+((4.91948*10^(-5))*exp(ln(10)*3*u)*kp+(1.1009999999999999999*10^(-9))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*7*u)*tf*kp-(4.4057999999999999997*10^(-6))*exp(ln(10)*5*u)*tf+0.0020611346999999999999*exp(ln(10)*7*u)*tf+(5.1408*10^(-7))*exp(ln(10)*3*u)*ki+0.43403072039999999999*exp(ln(10)*7*u)+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*7*u)-0.012168*exp(ln(10)*5*u)*ki*tf-(5.1408*10^(-7))*kd*exp(ln(10)*5*u)-0.0018567771959999999998*exp(ln(10)*5*u)+exp(ln(10)*7*u)*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*5*u)*ki+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)+(1.1009999999999999999*10^(-9))*kd*exp(ln(10)*3*u)-(6.606*10^(-8))*exp(ln(10)*u)*ki*tf-0.24104624999999999999*exp(ln(10)*9*u)*tf-33.75*exp(ln(10)*9*u)-(6.606*10^(-8))*exp(ln(10)*u)*kp-(5.1408*10^(-7))*exp(ln(10)*5*u)*tf*kp-0.012168*exp(ln(10)*5*u)*kp+(4.91948*10^(-5))*exp(ln(10)*3*u)*ki*tf+exp(ln(10)*7*u)*ki*tf-(1.1009999999999999999*10^(-9))*exp(ln(10)*u)*ki)^2)");
     cout<<"3";
-    Function Tw2z2u("kp","ki","kd","tf","u","sqrt(1/((kd*exp(ln(10)*4*u)-33.75*exp(ln(10)*6*u)*tf+exp(ln(10)*4*u)*tf*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*kp+0.14399999999999999999*exp(ln(10)*4*u)*tf-0.0036*exp(ln(10)*2*u)*tf*kp-exp(ln(10)*2*u)*ki+0.0036*ki-(5.9999999999999999995*10^(-5))*exp(ln(10)*2*u)*ki*tf+0.0023999999999999999998*exp(ln(10)*4*u)-0.0036*kd*exp(ln(10)*2*u))^2+(exp(ln(10)*3*u)*ki*tf+0.14399999999999999999*exp(ln(10)*3*u)-0.0036*exp(ln(10)*u)*ki*tf+exp(ln(10)*3*u)*kp-0.0023999999999999999998*exp(ln(10)*5*u)*tf-(5.9999999999999999995*10^(-5))*exp(ln(10)*u)*ki-33.75*exp(ln(10)*5*u)-0.0036*exp(ln(10)*u)*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*3*u))^2)*((10*exp(ln(10)*3*u)*ki*tf-0.036*exp(ln(10)*u)*ki*tf+10*exp(ln(10)*3*u)*kp-(5.9999999999999999995*10^(-4))*exp(ln(10)*u)*ki-0.036*exp(ln(10)*u)*kp+(5.9999999999999999995*10^(-4))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-4))*kd*exp(ln(10)*3*u))^2+(10*kd*exp(ln(10)*4*u)+10*exp(ln(10)*4*u)*tf*kp-(5.9999999999999999995*10^(-4))*exp(ln(10)*2*u)*kp-0.036*exp(ln(10)*2*u)*tf*kp-10*exp(ln(10)*2*u)*ki+0.036*ki-(5.9999999999999999995*10^(-4))*exp(ln(10)*2*u)*ki*tf-0.036*kd*exp(ln(10)*2*u))^2))");
+    Function Tw2z2u("kp","ki","kd","tf","u","((-(4.91948*10^(-4))*exp(ln(10)*3*u)*kp-(1.1009999999999999999*10^(-8))*exp(ln(10)*3*u)*tf*kp-(5.9999999999999999995*10^(-4))*exp(ln(10)*7*u)*tf*kp-(5.1407999999999999997*10^(-6))*exp(ln(10)*3*u)*ki-(5.9999999999999999995*10^(-4))*kd*exp(ln(10)*7*u)+0.12168*exp(ln(10)*5*u)*ki*tf+(5.1407999999999999997*10^(-6))*kd*exp(ln(10)*5*u)-10*exp(ln(10)*7*u)*kp+(5.9999999999999999995*10^(-4))*exp(ln(10)*5*u)*ki-(1.1009999999999999999*10^(-8))*kd*exp(ln(10)*3*u)+(6.606*10^(-7))*exp(ln(10)*u)*ki*tf+(6.606*10^(-7))*exp(ln(10)*u)*kp+(5.1407999999999999997*10^(-6))*exp(ln(10)*5*u)*tf*kp+0.12168*exp(ln(10)*5*u)*kp-(4.91948*10^(-4))*exp(ln(10)*3*u)*ki*tf-10*exp(ln(10)*7*u)*ki*tf+(1.1009999999999999999*10^(-8))*exp(ln(10)*u)*ki)^2+(-(4.91948*10^(-4))*exp(ln(10)*2*u)*ki+(5.1407999999999999997*10^(-6))*exp(ln(10)*4*u)*ki*tf+10*exp(ln(10)*8*u)*tf*kp-0.12168*kd*exp(ln(10)*6*u)-(1.1009999999999999999*10^(-8))*exp(ln(10)*2*u)*kp+(4.91948*10^(-4))*kd*exp(ln(10)*4*u)-(1.1009999999999999999*10^(-8))*exp(ln(10)*2*u)*ki*tf+(6.606*10^(-7))*ki-0.12168*exp(ln(10)*6*u)*tf*kp-(5.9999999999999999995*10^(-4))*exp(ln(10)*6*u)*ki*tf-(6.606*10^(-7))*kd*exp(ln(10)*2*u)-(5.9999999999999999995*10^(-4))*exp(ln(10)*6*u)*kp+0.12168*exp(ln(10)*4*u)*ki-(6.606*10^(-7))*exp(ln(10)*2*u)*tf*kp+10*kd*exp(ln(10)*8*u)-10*exp(ln(10)*6*u)*ki+(5.1407999999999999997*10^(-6))*exp(ln(10)*4*u)*kp+(4.91948*10^(-4))*exp(ln(10)*4*u)*tf*kp)^2)*1/(((4.91948*10^(-5))*exp(ln(10)*2*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*ki*tf-exp(ln(10)*8*u)*tf*kp-(2.6423999999999999998*10^(-6))*exp(ln(10)*4*u)*tf+0.012168*kd*exp(ln(10)*6*u)+0.0020611346999999999999*exp(ln(10)*6*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*kp-0.43403072039999999999*exp(ln(10)*8*u)*tf-(4.91948*10^(-5))*kd*exp(ln(10)*4*u)+(1.1009999999999999999*10^(-9))*exp(ln(10)*2*u)*ki*tf-(4.4057999999999999997*10^(-6))*exp(ln(10)*4*u)-(6.606*10^(-8))*ki+0.012168*exp(ln(10)*6*u)*tf*kp+0.0018567771959999999998*exp(ln(10)*6*u)*tf+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*ki*tf+(6.606*10^(-8))*kd*exp(ln(10)*2*u)+(5.9999999999999999995*10^(-5))*exp(ln(10)*6*u)*kp-0.012168*exp(ln(10)*4*u)*ki+(6.606*10^(-8))*exp(ln(10)*2*u)*tf*kp+33.75*exp(ln(10)*10*u)*tf-0.24104624999999999999*exp(ln(10)*8*u)-kd*exp(ln(10)*8*u)+exp(ln(10)*6*u)*ki-(5.1408*10^(-7))*exp(ln(10)*4*u)*kp-(4.91948*10^(-5))*exp(ln(10)*4*u)*tf*kp)^2+((4.91948*10^(-5))*exp(ln(10)*3*u)*kp+(1.1009999999999999999*10^(-9))*exp(ln(10)*3*u)*tf*kp+(5.9999999999999999995*10^(-5))*exp(ln(10)*7*u)*tf*kp-(4.4057999999999999997*10^(-6))*exp(ln(10)*5*u)*tf+0.0020611346999999999999*exp(ln(10)*7*u)*tf+(5.1408*10^(-7))*exp(ln(10)*3*u)*ki+0.43403072039999999999*exp(ln(10)*7*u)+(5.9999999999999999995*10^(-5))*kd*exp(ln(10)*7*u)-0.012168*exp(ln(10)*5*u)*ki*tf-(5.1408*10^(-7))*kd*exp(ln(10)*5*u)-0.0018567771959999999998*exp(ln(10)*5*u)+exp(ln(10)*7*u)*kp-(5.9999999999999999995*10^(-5))*exp(ln(10)*5*u)*ki+(2.6423999999999999998*10^(-6))*exp(ln(10)*3*u)+(1.1009999999999999999*10^(-9))*kd*exp(ln(10)*3*u)-(6.606*10^(-8))*exp(ln(10)*u)*ki*tf-0.24104624999999999999*exp(ln(10)*9*u)*tf-33.75*exp(ln(10)*9*u)-(6.606*10^(-8))*exp(ln(10)*u)*kp-(5.1408*10^(-7))*exp(ln(10)*5*u)*tf*kp-0.012168*exp(ln(10)*5*u)*kp+(4.91948*10^(-5))*exp(ln(10)*3*u)*ki*tf+exp(ln(10)*7*u)*ki*tf-(1.1009999999999999999*10^(-9))*exp(ln(10)*u)*ki)^2)");
     cout<<"u ok"<<endl;
+
+
     Function w1("kp","ki","kd","w","1/((0.0078960996)*w^2+(0.001248-(3.162)*w^2)^2)*((0.024964)*w^2+(-0.01248+w^2)^2)");
     Function w2("kp","ki","kd","w","((78.960996)*w^2+(-39.48+w^2)^2)*1/((7896.0996)*w^2+(-3948+w^2)^2)");
     Function w1usqrt("kp","ki","kd","u","sqrt(1/((0.0078960996)*exp(ln(10)*2*u)+(0.001248-3.162*exp(ln(10)*2*u))^2)*((-0.01248+exp(ln(10)*2*u))^2+0.024964*exp(ln(10)*2*u)))");
     Function w2usqrt("kp","ki","kd","u","sqrt(1/((-3948+exp(ln(10)*2*u))^2+7896.0996*exp(ln(10)*2*u))*((-39.48+exp(ln(10)*2*u))^2+78.960996*exp(ln(10)*2*u)))");
     cout<<"cst ok"<<endl;
-    Function Twz1(kp,ki,kd,tf,u,(Tw1z1u(kp,ki,kd,tf,u)+Tw2z1u(kp,ki,kd,tf,u))*w1usqrt(kp,ki,kd,u));
-    Function Twz2(kp,ki,kd,tf,u,(Tw1z2u(kp,ki,kd,tf,u)+Tw2z2u(kp,ki,kd,tf,u))*w2usqrt(kp,ki,kd,u));
+    Function Twz1(kp,ki,kd,tf,u,ibex::sqrt(Tw1z1u(kp,ki,kd,tf,u)+Tw2z1u(kp,ki,kd,tf,u))*w1usqrt(kp,ki,kd,tf,u));
+    Function Twz2(kp,ki,kd,tf,u,ibex::sqrt(Tw1z2u(kp,ki,kd,tf,u)+Tw2z2u(kp,ki,kd,tf,u))*w2usqrt(kp,ki,kd,tf,u));
 
     Function Max12(kp,ki,kd,tf,u,ibex::max(Twz1(kp,ki,kd,tf,u),Twz2(kp,ki,kd,tf,u)));
-
 
     vector<bernfunc> bernwset;
     vector<bernfunc> bernwfree;
@@ -545,10 +632,10 @@ int main() {
 
         Function rS1("kp","ki","kd","tf","(33.75)*tf");
         Function rS2("kp","ki","kd","tf","33.75+(0.0023999999999999999998)*tf");
-        Function rS3("kp","ki","kd","tf","(0.08099999999999999999+(5.760000000000053272e-6)*tf+(3.4559999999999999995e-4)*tf^2+(3.7499999999999999997e-4)*tf^2*kp+(3.7499999999999999997e-4)*tf*kd+(33.75)*kd-(33.75)*tf^2*ki)*1/(33.75+(0.0023999999999999999998)*tf)");
-        Function rS4("kp","ki","kd","tf","(0.011663999999999999998+(8.294400000000076711e-7)*tf-(0.08099999999999999999)*tf*ki+(4.976639999999999999e-5)*tf^2+(2.2499999999999999996e-8)*tf^3*kp^2+(33.75)*tf*kd*ki+(0.012656249999999999999)*kp+(2.2499999999999999996e-8)*tf*kd^2+(1.0799999999999999998e-4)*tf^2*kp+(3.7499999999999999997e-4)*tf^2*kp^2+(0.0023999999999999999998)*tf*kp*kd-(5.2919965439999999993e-4)*tf*kd+(0.75937985999999999985)*kd-(0.0016499999999999999999)*tf^3*kp*ki+(4.499999999999999999e-8)*tf^2*kp*kd+(6.371996543999999999e-4)*tf^3*ki-(33.75)*tf^2*kp*ki-(1139.0625)*ki+(33.75)*kp*kd-(0.0016499999999999999999)*tf^2*kd*ki+(9.000000000000532727e-7)*tf*kp+(0.0020249999999999999998)*kd^2-(33.75)*tf^3*ki^2-(0.75937985999999999985)*tf^2*ki)*1/(0.08099999999999999999+(5.760000000000053272e-6)*tf+(3.4559999999999999995e-4)*tf^2+(3.7499999999999999997e-4)*tf^2*kp+(3.7499999999999999997e-4)*tf*kd+(33.75)*kd-(33.75)*tf^2*ki)");
-        Function rS5("kp","ki","kd","tf","1/(0.011663999999999999998+(8.294400000000076711e-7)*tf-(0.08099999999999999999)*tf*ki+(4.976639999999999999e-5)*tf^2+(2.2499999999999999996e-8)*tf^3*kp^2+(33.75)*tf*kd*ki+(0.012656249999999999999)*kp+(2.2499999999999999996e-8)*tf*kd^2+(1.0799999999999999998e-4)*tf^2*kp+(3.7499999999999999997e-4)*tf^2*kp^2+(0.0023999999999999999998)*tf*kp*kd-(5.2919965439999999993e-4)*tf*kd+(0.75937985999999999985)*kd-(0.0016499999999999999999)*tf^3*kp*ki+(4.499999999999999999e-8)*tf^2*kp*kd+(6.371996543999999999e-4)*tf^3*ki-(33.75)*tf^2*kp*ki-(1139.0625)*ki+(33.75)*kp*kd-(0.0016499999999999999999)*tf^2*kd*ki+(9.000000000000532727e-7)*tf*kp+(0.0020249999999999999998)*kd^2-(33.75)*tf^3*ki^2-(0.75937985999999999985)*tf^2*ki)*((2.0229749999999999995e-8)*tf*kd^3-(0.20503124999999999999)*tf^3*kp*ki^2+(6.5611337471502335975e-6)*tf^5*ki^2-(2.6729999999999820196e-4)*tf*kp*ki-(0.14934374999999999999)*tf^4*ki^3+(2.4187500000001638245e-6)*tf^3*kd*ki^2+(1.0322634401280047733e-4)*tf*ki+(7.7760000000003164365e-12)*tf^3*kp^2-(0.034183269269999999998)*tf*kd*ki-(1.7495996759999999996e-8)*tf^5*kp^2*ki-(0.055687499999999999994)*tf^2*kp^2*ki+(0.06834374999999999999)*kp^2*kd+(0.09226817243847071999)*tf^4*ki^2+(5.831999999999999998e-13)*tf^4*kp^2*kd-(4.860000000000194026e-6)*tf^5*ki^3+(0.23034374999999999997)*tf*kp*kd*ki-(5.7736716019199999992e-5)*tf*kd^2+(1139.0625)*kp*kd*ki-(2.4603716283749999998e-4)*tf^2*kd^2*ki+(9.956249999999999998e-11)*tf^3*kp^3+(4.9207533716249999993e-4)*tf*kp*kd^2-(3.4991993519999999992e-8)*tf^4*kp*kd*ki-(4.572285014015999999e-9)*tf^3*kp*kd+(1.0935012959999999997e-7)*tf^2*kp^2-(2.3619586003200064722e-6)*tf*kp*kd+(5.831999999999999998e-13)*tf^3*kp*kd^2+(2.5628906249999999996e-5)*kp^2-(6.046624766361599999e-6)*tf^4*ki+(2.01553920000000932e-7)*tf*kd+(5.1175574496049766397e-5)*tf^3*kd*ki-(5.4674999999999999998)*tf*ki^2+(0.0014171759999999999997)*kd-(2.4603763803749999997e-4)*tf^4*kp^2*ki+(1139.0625)*tf*kd*ki^2-(6.62808821175746329e-26)*tf^3*kp+(2.4603793672499999997e-4)*tf^2*kp^2*kd+(7.5937499999999999986e-7)*tf^2*kp^3+(2.0306684707200064723e-6)*tf^3*kp*ki-(4.2998169599999999986e-10)*tf^5*ki+(6.429784199035023358e-5)*tf^4*kp*ki-(1.7495996759999999996e-8)*tf^3*kd^2*ki-(25.629100649999999996)*tf^2*ki^2-(1.8794531249999999998)*kp*ki-(6.4297841990350233585e-5)*tf^2*kp*kd-(38443.359375)*ki^2+(4.5722850140159999985e-9)*tf^4*kd*ki-(6.541874999999999999e-6)*tf^3*kp^2*ki+(25.628742225)*kd*ki+(9.719999999999999998e-6)*tf*kp^2*kd+(3.6450000000001078766e-9)*tf*kp^2+(0.16199999999999999998)*tf^2*kd*ki^2+(1.8662280560639067924e-8)*tf^3*ki-(2.375999999999835458e-10)*tf^5*kp*ki^2+(1.2138750000000247298e-5)*tf^2*kp*kd*ki+(4.1006249999999999996e-6)*kp*kd^2-(1139.0625)*tf^2*kp*ki^2+(6.0466247663615999987e-6)*tf^2*kd+(0.011948744456999999998)*tf^2*kp*ki+(0.72581023133999999987)*ki-(0.016607521408499999998)*kp*kd+(4.5722850140159999985e-9)*tf^5*kp*ki-(4.572285014015999999e-9)*tf^2*kd^2+(2.7337532399999999995e-9)*tf^4*kp^3-(0.18453326606872991997)*tf^2*kd*ki-(1.5534375163356999834e-23)*tf*kp-(4.920748008749999999e-4)*tf^3*kp*kd*ki+(2.5697256479999999993e-8)*tf^3*kp^2*kd+(0.09226465298999999998)*kd^2+(0.029524488335999999997)*tf^3*ki^2-(2.375999999999835458e-10)*tf^4*kd*ki^2-(1.0097419586828951109e-28)*tf^4*kp^2+(4.2998169599999999986e-10)*tf^3*kd+(1.9439999999999999993e-13)*tf^2*kd^3+(1.9439999999999999993e-13)*tf^5*kp^3-(1139.0625)*tf^3*ki^3+(2.4603749999999999997e-4)*kd^3-(1.21612500000000417355e-5)*tf^4*kp*ki^2+(0.0016796179906540093438)*tf^2*ki+(4.3193253239999999988e-8)*tf^2*kp*kd^2+(4.1006250000004754175e-6)*tf*kd^2*ki)*1/(33.75+(0.0023999999999999999998)*tf)");
-        Function rS6("kp","ki","kd","tf","1/(0.08099999999999999999+(5.760000000000053272e-6)*tf+(3.4559999999999999995e-4)*tf^2+(3.7499999999999999997e-4)*tf^2*kp+(3.7499999999999999997e-4)*tf*kd+(33.75)*kd-(33.75)*tf^2*ki)*1/((2.0229749999999999995e-8)*tf*kd^3-(0.20503124999999999999)*tf^3*kp*ki^2+(6.5611337471502335975e-6)*tf^5*ki^2-(2.6729999999999820196e-4)*tf*kp*ki-(0.14934374999999999999)*tf^4*ki^3+(2.4187500000001638245e-6)*tf^3*kd*ki^2+(1.0322634401280047733e-4)*tf*ki+(7.7760000000003164365e-12)*tf^3*kp^2-(0.034183269269999999998)*tf*kd*ki-(1.7495996759999999996e-8)*tf^5*kp^2*ki-(0.055687499999999999994)*tf^2*kp^2*ki+(0.06834374999999999999)*kp^2*kd+(0.09226817243847071999)*tf^4*ki^2+(5.831999999999999998e-13)*tf^4*kp^2*kd-(4.860000000000194026e-6)*tf^5*ki^3+(0.23034374999999999997)*tf*kp*kd*ki-(5.7736716019199999992e-5)*tf*kd^2+(1139.0625)*kp*kd*ki-(2.4603716283749999998e-4)*tf^2*kd^2*ki+(9.956249999999999998e-11)*tf^3*kp^3+(4.9207533716249999993e-4)*tf*kp*kd^2-(3.4991993519999999992e-8)*tf^4*kp*kd*ki-(4.572285014015999999e-9)*tf^3*kp*kd+(1.0935012959999999997e-7)*tf^2*kp^2-(2.3619586003200064722e-6)*tf*kp*kd+(5.831999999999999998e-13)*tf^3*kp*kd^2+(2.5628906249999999996e-5)*kp^2-(6.046624766361599999e-6)*tf^4*ki+(2.01553920000000932e-7)*tf*kd+(5.1175574496049766397e-5)*tf^3*kd*ki-(5.4674999999999999998)*tf*ki^2+(0.0014171759999999999997)*kd-(2.4603763803749999997e-4)*tf^4*kp^2*ki+(1139.0625)*tf*kd*ki^2-(6.62808821175746329e-26)*tf^3*kp+(2.4603793672499999997e-4)*tf^2*kp^2*kd+(7.5937499999999999986e-7)*tf^2*kp^3+(2.0306684707200064723e-6)*tf^3*kp*ki-(4.2998169599999999986e-10)*tf^5*ki+(6.429784199035023358e-5)*tf^4*kp*ki-(1.7495996759999999996e-8)*tf^3*kd^2*ki-(25.629100649999999996)*tf^2*ki^2-(1.8794531249999999998)*kp*ki-(6.4297841990350233585e-5)*tf^2*kp*kd-(38443.359375)*ki^2+(4.5722850140159999985e-9)*tf^4*kd*ki-(6.541874999999999999e-6)*tf^3*kp^2*ki+(25.628742225)*kd*ki+(9.719999999999999998e-6)*tf*kp^2*kd+(3.6450000000001078766e-9)*tf*kp^2+(0.16199999999999999998)*tf^2*kd*ki^2+(1.8662280560639067924e-8)*tf^3*ki-(2.375999999999835458e-10)*tf^5*kp*ki^2+(1.2138750000000247298e-5)*tf^2*kp*kd*ki+(4.1006249999999999996e-6)*kp*kd^2-(1139.0625)*tf^2*kp*ki^2+(6.0466247663615999987e-6)*tf^2*kd+(0.011948744456999999998)*tf^2*kp*ki+(0.72581023133999999987)*ki-(0.016607521408499999998)*kp*kd+(4.5722850140159999985e-9)*tf^5*kp*ki-(4.572285014015999999e-9)*tf^2*kd^2+(2.7337532399999999995e-9)*tf^4*kp^3-(0.18453326606872991997)*tf^2*kd*ki-(1.5534375163356999834e-23)*tf*kp-(4.920748008749999999e-4)*tf^3*kp*kd*ki+(2.5697256479999999993e-8)*tf^3*kp^2*kd+(0.09226465298999999998)*kd^2+(0.029524488335999999997)*tf^3*ki^2-(2.375999999999835458e-10)*tf^4*kd*ki^2-(1.0097419586828951109e-28)*tf^4*kp^2+(4.2998169599999999986e-10)*tf^3*kd+(1.9439999999999999993e-13)*tf^2*kd^3+(1.9439999999999999993e-13)*tf^5*kp^3-(1139.0625)*tf^3*ki^3+(2.4603749999999999997e-4)*kd^3-(1.21612500000000417355e-5)*tf^4*kp*ki^2+(0.0016796179906540093438)*tf^2*ki+(4.3193253239999999988e-8)*tf^2*kp*kd^2+(4.1006250000004754175e-6)*tf*kd^2*ki)*(-(3.5307346347016243853e-6)*tf^3*kp*ki^2+(1.6386098812199999994e-13)*tf^4*kp^3*kd^2+(1.3440937499999999996e-16)*tf^5*kp^5-(5.466753942567071844e-10)*tf^8*kp*ki^3+(1.298370758537532027e-5)*tf^4*kd^2*ki^2+(1.3223982101929431184e-10)*tf^7*kp*ki^2+(0.0083037868457343749955)*tf*kp^2*kd^2*ki+(1.0497599999999999995e-18)*tf^6*kp^4*kd+(1.3839609374999999997e-4)*kp^2*kd^2*ki-(1.4366763417624766939e-9)*tf^5*ki^2+(6.470787664715795222e-11)*tf^2*kp*kd^3*ki+(3.749845247119888749e-8)*tf*kp*ki+(9.041874636937499998e-7)*tf^5*kp^3*ki^2-(0.44841490589794288335)*tf^4*ki^3-(2.2553437500000988575e-4)*tf^2*kp^2*kd*ki^2+(1.5746399999999999994e-18)*tf^6*kp^2*kd^2*ki+(0.008303765624999999999)*kp^3*kd^2-(1.1325926768653244006e-10)*tf^5*kp^2*kd*ki^2+(0.005535843749999842173)*tf^3*ki^4-(7.522977585416896509e-12)*tf^6*kp*ki+(1.0497599999999999995e-18)*tf^5*kp*kd^3*ki+(0.61240238269312499995)*kd^2*ki^2+(2.4774342718464095138e-16)*tf^5*kp^4-(7.0568715504919306673e-4)*tf^3*kd*ki^2-(3.5263873843200217417e-9)*tf*ki+(4.587400246292034065e-7)*tf^3*kp^2*kd*ki+(5.1081788334381465576e-15)*tf^7*kd*ki^2-(6.3772894876835312977e-9)*tf^4*kp^2*kd^2*ki-(9.3971249790667045395e-4)*tf^4*kp^2*ki^2-(1.0518095374818172365e-6)*tf^2*kd^3*ki^2-(3.8654753428727007862e-29)*tf^3*kp^2+(2.6243999999999999988e-19)*tf^8*kp^4*ki-(4.5917971728082037458e-8)*tf*kd*ki+(7.2559411199999999964e-19)*tf^7*kp^2*kd*ki-(4.7239195625999999982e-14)*tf^5*kd^3*ki^2-(6.8904427139675999987e-6)*tf*kp*kd^3-(7.687605808274727626e-6)*tf^2*kp^2*kd^2+(5.3496602689535999975e-16)*tf^6*kd*ki+(7.2559411199999999964e-19)*tf^5*kp^2*kd^2+(1.0251562499999999997e-12)*tf^4*kp^5+(0.041518849584937499992)*tf^2*kp*kd^2*ki^2+(4.6589167968868544213e-12)*tf^5*kp^2*ki-(3.8518598887744717061e-34)*tf^6*kp*kd*ki+(2.8231495780328956776e-7)*tf^2*kp^2*ki+(2.3066015624999999997)*tf^4*kp*ki^4-(4.842753242718599999e-6)*kp^2*kd+(3.3978252046660257948e-5)*tf^4*ki^2+(5.0929762499999999982e-14)*tf^3*kd^4*ki-(8.370195784171656298e-9)*tf^5*kp*kd^2*ki^2-(0.0011957422499999999998)*kd^3*ki-(7.1833954467028037244e-11)*tf^4*kp^2*kd+(2.3097795277355433247e-4)*tf^5*ki^3+(2.5095813905277746412e-6)*tf^4*kd^2*ki^3+(5.0929762499999999982e-14)*tf^2*kp*kd^4-(8.484815639892795983e-6)*tf^7*kp*ki^3-(9.71848124999885371e-7)*tf^3*kp*ki^3-(4.982667521585796203e-7)*tf*kp*kd*ki+(0.06576559207498689218)*kp*kd*ki+(1.899646502215679999e-14)*tf^4*kd^3*ki+(5.1081788334381465576e-15)*tf^8*kp*ki^2+(2.457383047951117093e-8)*tf^2*kd^2*ki-(6.5610000000000667786e-4)*tf^4*kd*ki^4+(6.244432598829374998e-9)*tf^2*kp^2*kd^3-(4.3548628751999999984e-14)*tf^7*kp^4*ki+(1.8895711842719999995e-12)*tf^4*kp^4-(5.108178833438146558e-15)*tf^5*kd^2*ki+(9.0699290873858264864e-15)*tf^3*kp^3+(1.4764131566860499998e-7)*tf^2*kp^3*kd+(1.14791623332020509345e-8)*tf*kp*kd^2+(2.5798925946470399988e-14)*tf^5*kp^3*kd-(5.4667539425670718437e-10)*tf^7*kd*ki^3+(8.713828124999600799e-5)*tf^4*kp^2*ki^3-(1.5923571180560192876e-7)*tf^4*kp^3*ki-(1.6989204578945295054e-6)*tf^4*kp*kd*ki+(5.296095665529092643e-6)*tf^3*kp*kd^2*ki+(6.2279700421479110973)*tf^3*kd*ki^3+(5.015307988160764567e-13)*tf^3*kp*kd+(8.740421797958495536e-10)*tf^5*kd^2*ki^2-(5.296080452307382455e-6)*tf^6*kd*ki^3-(3.221208033873737277e-31)*tf^2*kp^2+(9.050960307198425593e-4)*tf^2*kd^2*ki^2-(5.978718335878137252e-5)*tf^4*kp^3*kd*ki+(1.5746399999999999994e-18)*tf^5*kp^3*kd^2-(0.0064008193359370579856)*tf*kd*ki^3+(8.815968460800054354e-11)*tf*kp*kd+(2.9893627969931249997e-5)*tf^2*kp^3*kd^2-(5.3496602689535999975e-16)*tf^8*ki^2-(6.6430184140117709985e-10)*tf^6*kp^4*ki+(2.4186470399999999987e-19)*tf^7*kp^4-(1.14280879147617626355e-11)*tf^3*kp*kd^2+(0.033631727418750618515)*tf^4*kp*kd*ki^2-(3.985807499999952097e-5)*tf*ki^3+(1.6423003983599921879e-6)*tf^3*kp*kd^2*ki^2+(3.4763492772550099038e-8)*tf^6*ki^3+(0.008303762834296874999)*tf^4*kp^3*ki^2-(0.0020178126553904999998)*kp^2*kd^2-(0.011210690411812641075)*tf^6*kp*ki^3+(0.28025172501626953122)*tf^2*kp^2*ki^2-(3.276146064085421545e-7)*tf^5*kp^2*ki^2+(1.08058176821577553936e-10)*tf^6*kp*kd*ki^2-(0.033631298873275313246)*tf^2*kp*kd^2*ki+(2.5798925946470399987e-14)*tf^5*kp*kd^2*ki-(3.0091910341667586039e-10)*tf^4*ki+(77.84780273437499999)*tf^2*ki^4+(4.139416050647039998e-14)*tf^4*kp^2*kd^2+(2.6243999999999999988e-19)*tf^7*kp^5-(7.971612375599999996e-14)*tf^6*kp^3*kd*ki-(4.9158285469705520987e-9)*tf^4*kd^3*ki^2-(7.522977585416896509e-12)*tf^7*ki^2+(0.0017299511718751325873)*kp*kd*ki^2+(2.9893556249999999996e-5)*tf*kd^4*ki+(9.2956042968745690447e-7)*tf*kp*kd*ki^2+(3.9835171700435981843e-9)*tf^3*kd*ki+(5.380949814381601922e-5)*tf*ki^2-(0.033215112675703124996)*tf^4*kp*kd*ki^3+(1.899646502215679999e-14)*tf^3*kp*kd^3-(5.2474981040007645666e-13)*tf^6*ki^2+(3.8955937499998705142e-4)*tf^5*kp*ki^4+(1.3286040518588228994e-9)*tf^3*kp*kd^3*ki-(0.016607560250531249998)*tf^3*kp^2*kd*ki^2+(6.040587622685443461e-11)*tf^8*ki^3+(3.690566873999999999e-15)*tf^6*kp^5+(2.9930776233986544344e-8)*tf^4*kp^2*ki+(2.9893556249999999996e-5)*kp*kd^4-(1.4171758687799999995e-13)*tf^7*kp^2*kd*ki^2+(2.4186470399999999987e-19)*tf^5*kd^3*ki+(0.0086414761191152418275)*tf*kd*ki^2-(6.890444751158099999e-6)*tf^2*kd^3*ki-(5.108178833438146558e-15)*tf^5*kp^2*kd+(2.9893514710656842997e-5)*tf^5*kd^2*ki^3+(3.5367890625000175664e-4)*tf^2*kd^2*ki^3-(6.7260489106851562485e-4)*kp^2*ki-(4.8977807661268991972e-11)*tf^6*kd*ki^2-(3.7498525937559024343e-8)*tf^2*kp^2*kd+(6.377303337407999998e-11)*tf^2*kp^3+(2.1930918608583355385e-10)*tf^4*kp^3*kd+(1.0339708485319860019e-10)*tf^3*kp*ki+(8.494587772564136487e-7)*tf^7*ki^3-(2.139864107581439999e-14)*tf^5*ki+(1.0497599999999999995e-18)*tf^4*kp^2*kd^3-(1.1428097589349922633e-11)*tf^4*kd^2*ki-(5.3496602689535999975e-16)*tf^7*kp*ki+(3.4012304621567999987e-15)*tf^6*kp^4-(0.033215080599703125002)*tf^5*kd*ki^4+(2.3042949609374999995e-5)*kp^3*kd+(7.473389062499999998e-9)*kp^3-(2.6156857451537109368e-5)*tf^2*kp^3*ki+(0.0029575246466160710385)*tf^2*kp^2*kd*ki-(1.8338433372776557145e-11)*tf^5*kp^3*ki-(1.9486170000001059961e-9)*tf*kp*ki^2+(2.6243999999999999993e-11)*tf^3*kp^4*kd-(0.44840908331279999985)*kd^2*ki+(8.494640599825929355e-7)*tf^6*kp*ki^2+(4.982259374999999999e-7)*kp^2*kd^3+(5.978711865091368599e-5)*tf^6*kp*kd*ki^3+(8.7404272567131829223e-10)*tf^5*kp^2*kd*ki+(0.008303774259093749997)*tf^5*kp^2*ki^3-(9.795535991390589888e-10)*tf^4*kp*ki-(2.3066026004644101174e-6)*tf^4*kp^2*kd*ki^2+(2.2592160410025676885e-11)*tf^3*kp^3*kd+(1.09240658747999999954e-13)*tf^4*kp*kd^3*ki-(2.3168529009843749994e-11)*tf^5*kp^4*ki-(8.8163437499999552927e-4)*tf^3*kp*kd*ki^3+(8.4945388150931045225e-7)*tf^3*kd^2*ki+(0.009039859112205835467)*tf^2*ki^2+(1.5647985437399999995e-13)*tf^3*kp^2*kd^3-(0.9445523433918749999)*tf^2*kd*ki^3+(1.7577399595874399995e-4)*kp*ki+(6.6430236764812499984e-10)*tf^4*kp^4*kd+(4.251526571159999999e-9)*tf^7*kp*kd*ki^3+(1.59432300000003637155e-12)*tf*kp^3-(1.5595234559999999993e-14)*tf^6*kd^2*ki^2+(3.5263936534531276787e-9)*tf^2*kp*kd+(5.3496602689535999975e-16)*tf^5*kp*kd-(1.256280555314910781e-34)*tf^6*kp^3+(5.9049000000002357413e-7)*tf^8*ki^5+(0.03363108151220090518)*tf^5*kd*ki^3+(1.2732440624999999997e-6)*tf*kp^3*kd^2-(3.1139714120923145256)*tf*kd^2*ki^2-(0.0112104104303523613375)*tf^7*ki^4-(0.016607522946234375)*kp*kd^3*ki-(5.535835999818172366e-7)*tf*kp*kd^3*ki+(0.25223202254913681237)*ki^2+(2.7900652499999999992e-9)*tf^2*kd^4*ki+(2.4186470399999999987e-19)*tf^4*kp*kd^3+(5.1081788334381465576e-15)*tf^7*kp^2*ki+(2.560327734374999999e-10)*tf^2*kp^4+(7.0585795215360231896e-13)*tf^4*kd*ki-(4.7239195625999999982e-14)*tf^8*kp^3*ki^2+(3.5263977391531434278e-10)*tf^3*kp^2*ki+(2.2143401243999999988e-14)*tf^5*kp^2*kd^2*ki-(0.002543733571165023312)*tf^5*kp*ki^3-(0.007963650272475359998)*kd*ki-(0.0025949267578129209255)*tf^2*kp*ki^3-(7.687650033810499649e-6)*tf^6*kp^2*ki^2+(0.011210227082819999997)*kp*kd^3-(7.971837968963533823e-7)*tf^8*ki^4+(2.6243999999999999988e-19)*tf^3*kp*kd^4-(1.9929059274316562998e-9)*tf^6*kp^2*kd*ki^2+(0.0083037754664999999985)*tf^7*ki^5+(4.059630703322175465e-7)*tf^2*kp^2*kd^2*ki-(2.1774314375999999993e-6)*tf^3*kp^3*kd*ki+(2.3066015624999999997)*tf*kd^2*ki^3-(1.0331206917799749596e-9)*tf*kp^2*kd+(3.0242109375000492122e-4)*tf^6*ki^5-(4.529823797634901151e-27)*tf*kp^2+(2.1257632855799999995e-9)*tf^6*kd^2*ki^3-(3.1190469119999999986e-14)*tf^7*kp*kd*ki^2+(0.89682452064787713413)*tf^2*kd*ki^2-(1.6989136050623459597e-6)*tf^5*kd*ki^2+(0.011210115480209999997)*tf*kd^3*ki-(1.0805776531532163071e-10)*tf^3*kp^2*kd^2-(8.968076499165012251e-5)*tf^4*kp*kd^2*ki^2-(105.098270387974690475)*tf^2*ki^3+(0.0072436778961572203366)*tf^3*kp*kd*ki^2+(0.008303786891296874996)*tf^6*kp*ki^4+(1.0497599999999999995e-18)*tf^7*kp^3*kd*ki-(5.9787094293210852836e-5)*tf^3*kd^3*ki^2-(2.0061231952643058266e-11)*tf^3*ki-(4.0828273033358282404e-4)*tf^6*ki^4-(2.1930837147173763068e-10)*tf^6*kp^3*ki-(1.2081178147747334921e-10)*tf^5*kp*kd*ki+(5.1599597584970948617e-8)*tf^5*kp*ki^2-(1.4171758687799999995e-13)*tf^6*kp*kd^2*ki^2-(1.544533220977059356e-4)*tf^2*kp*kd*ki+(1.9909125681188399994e-4)*kp*kd^2+(1.4024137558978175707e-6)*tf^6*kp^2*ki^3-(0.064597960673630362705)*tf^2*kp*ki^2+(2.3066015624999999997)*kp*kd^2*ki^2+(4.9207500000000847784e-4)*tf*kp*kd^2*ki^2+(1.4614613097694478995e-9)*tf^7*kp^3*ki^2-(0.18683472656250899036)*ki^3-(2.0482618157100434786e-6)*tf^6*kd*ki^4-(5.108178833438146558e-15)*tf^4*kp*kd^2+(2.9893557439171583152e-5)*tf^6*kp^3*ki^2+(1.0079160332942940909e-5)*tf^5*kp*kd*ki^2-(4.6132031249999999995)*tf^3*kd*ki^4-(8.246402229540165526e-32)*tf^5*kp^2+(9.336372358045689739e-7)*tf^2*kp*ki-(77.84780273437499999)*kd*ki^3-(1.8452810791406249996e-7)*tf^4*kp^4*ki-(1.6529940863999999996e-5)*ki+(4.1324852159999999985e-7)*kp*kd+(2.230739999999773888e-11)*tf^7*kd*ki^4+(6.2280382714411020727)*tf^2*kp*kd*ki^2-(3.2042265706255059434e-13)*tf^5*kp*ki+(7.2559411199999999964e-19)*tf^6*kp*kd^2*ki+(2.3066015624999999997)*tf^5*ki^5+(4.969957500000029125e-14)*tf^3*kp^4-(1.2194004097843199995e-14)*tf^7*kp^3*ki-(1.5595234559999999993e-14)*tf^8*kp^2*ki^2-(5.580130130943531298e-9)*tf^5*kp^3*kd*ki-(0.00469994441802286499)*tf*kp*kd^2*ki-(3.1140285696480325486)*kp*kd^2*ki+(7.522977585416896509e-12)*tf^4*kp*kd+(1.3604921848627199992e-13)*tf^4*kp^3+(1.8452812499999999996e-7)*tf^2*kp^4*kd+(2.9893603940256842993e-5)*tf^7*kp^2*ki^3+(6.9892914183125004017e-4)*tf^4*kd*ki^3+(6.200146312199999998e-14)*tf^5*kp^4*kd-(0.016607528174531249998)*tf^2*kp^3*kd*ki-(4.6943946716737762124e-9)*tf^3*kp^3*ki-(1.659088704932107864e-7)*tf*kp^2*kd^2-(0.016607522946234374998)*tf*kd^3*ki^2+(7.522977585416896509e-12)*tf^5*kd*ki-(3.1139955161391131985)*tf^5*ki^4-(3.3978097495031845542e-5)*tf^2*kd*ki+(9.04188184290028645e-7)*tf^7*kp*ki^4-(3.273667036577279999e-10)*tf^2*kp*kd^3+(2.6243999999999999988e-19)*tf^4*kd^4*ki+(7.65984382987727923e-10)*tf^4*kp*kd^2*ki-(7.8214271250607683846e-8)*tf^3*kp*kd*ki+(0.041518828364203124995)*tf^3*kd^2*ki^3-(5.3331149817731264207e-12)*tf^3*kp^2*kd-(3.273667141553279999e-10)*tf^3*kd^3*ki+(7.958923724081594567e-7)*tf^3*ki^2-(3.114006587866471274)*tf^4*kp*ki^3-(7.6598400297427199974e-10)*tf^7*kp^2*ki^2-(6.6905075810994386885e-8)*tf^4*kd*ki^2-(1.37440037159004029905e-33)*tf^4*kp^2-(2.304287079279960937e-5)*tf*kp^2*kd*ki+(2.4186470399999999987e-19)*tf^8*kp^3*ki-(0.2802517057945898437)*kp^2*kd*ki+(2.1257632855799999995e-9)*tf^8*kp^2*ki^3+(2.7900652499999999992e-9)*tf*kp*kd^4+(1.9928973065512499992e-5)*tf^3*kp^2*ki^2+(7.183394479243987723e-11)*tf^6*kp^2*ki+(105.09814582785880195)*kd*ki^2-(4.6132031249999999995)*tf^2*kp*kd*ki^3-(1.9929048535744535967e-6)*tf^5*kp*kd*ki^3-(5.3915431735295999985e-15)*tf^6*kp^2*kd*ki+(9.6745881600003042145e-18)*tf^5*kp^3-(1.4348904342795044232e-7)*tf*kp^2*ki-(0.0074737681570904975972)*tf^3*ki^3+(4.118669582068124999e-9)*tf^3*kp^3*kd^2-(8.968065173237571551e-5)*tf^3*kp^2*kd^2*ki+(1.537525726583923339e-5)*tf^4*kp^2*kd*ki-(4.4638915873173038986e-5)*tf^4*kp*ki^2-(0.033630798156569443665)*tf^3*kd^2*ki^2+(0.33214989918937499992)*tf^4*ki^4-(1.4105574613812510714e-7)*tf^2*ki+(4.7289945234375262124e-9)*tf*kp^3*kd+(8.4945464136791133854e-7)*tf^2*kp*kd^2-(9.134142187499673382e-6)*kp*ki^2+(4.7470896537058799988e-4)*tf*kd^2*ki+(5.978715900108749999e-5)*tf*kp^2*kd^3+(7.2559411199999999964e-19)*tf^6*kp^3*kd+(2.230739999999773888e-11)*tf^8*kp*ki^4)");
+        Function rS3("kp","ki","kd","tf","1");
+        Function rS4("kp","ki","kd","tf","1");
+        Function rS5("kp","ki","kd","tf","1");
+        Function rS6("kp","ki","kd","tf","1");
         Function rS7("kp","ki","kd","tf","(0.0036)*ki");
         //    Function rGS1("kp","ki","kd","0.002410239271874000076+(1.11103210438367897874e-5)*kp+(0.99994000426636328084)*kd-(0.999928893945319444)*ki");
     //    Function rGS2("kp","ki","kd","((0.14399999999999999999+(1.00006)*kp+(5.9999999999999999995e-5)*kd+ki)*(0.002410239271874000076+(1.11103210438367897874e-5)*kp+(0.99994000426636328084)*kd-(0.999928893945319444)*ki)-(33.7524)*1/(0.14399999999999999999+(1.00006)*kp+(5.9999999999999999995e-5)*kd+ki)*((0.14399999999999999999+(1.00006)*kp+(5.9999999999999999995e-5)*kd+ki)*((0.00366)*kp+(0.0036)*kd+(1.00006)*ki)-((0.0036)*kp+(0.00366)*ki)*(0.1464+kp+kd)))*1/(0.002410239271874000076+(1.11103210438367897874e-5)*kp+(0.99994000426636328084)*kd-(0.999928893945319444)*ki)");
@@ -617,11 +704,11 @@ int main() {
     fac.add_var(tf);
     fac.add_ctr(*c1);
     fac.add_ctr(*c2);
-    fac.add_ctr(*c3);
-    fac.add_ctr(*c4);
-    fac.add_ctr(*c5);
-    fac.add_ctr(*c6);
-    fac.add_ctr(*c7);
+//    fac.add_ctr(*c3);
+//    fac.add_ctr(*c4);
+//    fac.add_ctr(*c5);
+//    fac.add_ctr(*c6);
+//    fac.add_ctr(*c7);
 
     NormalizedSystem sys(fac) ;
 
@@ -681,34 +768,36 @@ int main() {
 ////    [-10, -9.92527] ; [9.42821, 9.49672] ; [9.54245, 9.59852] ; [1.00253, 1.00912]
 /// -9.8,-9.58,8.3,0.9
 /// -9.95,9.45,9.57,1.006
-    Interval Kp(-10, -9.92527),Ki(9.42821, 9.49672),Kd(9.54245, 9.59852),T(1.00253, 1.00912);
+//[0.0526128, 0.114015] ; [1.19271, 1.26094] ; [3.26044, 3.32868] ; [1.60863, 1.67121]
+    Interval Kp(-0.0526128, 0.114015),Ki(1.19271, 1.26094),Kd(3.26044, 3.32868),T(1.60863, 1.67121);
     IntervalVector stabox(4),staboxw(5);
     stabox[0] =Kp;stabox[1] =Ki;stabox[2] =Kd;stabox[3] =T;
     vector<Function *> pt_coefs;
-//    staboxw[0] =Kp;staboxw[1] =Ki;staboxw[2] =Kd;staboxw[3] =T;
 
-//    Interval co = cutoff_bound(pol_coef,stabox);
-//    cout<<"cutoff freq: "<<co<<endl;
-//    IntervalVector w_dom(1,Interval(0,1));
-//    CtcExist fex(fw,mask,w_dom,0.01);
-//    vibes::beginDrawing();
-//    vibes::newFigure("real part pol");
-//    double wmin(0),wmax(1),freqeps(0.001);
-//    Interval freq(wmin,wmin+freqeps);
-//    IntervalVector cdraw(2);
-//    while(freq.ub()<wmax) {
-//        cdraw[0] = freq;
-//        staboxw[4] = freq;
-//        cdraw[1] = real_part.eval_vector(staboxw)[0];
-//        vibes::drawBox(cdraw,"red[red]");
-//        cdraw[1] = imag_part.eval_vector(staboxw)[0];
-//        vibes::drawBox(cdraw,"blue[blue]");
-//        freq+=Interval(freqeps);
-//    }
-//    vibes::endDrawing();
-//    return 0;
+////    staboxw[0] =Kp;staboxw[1] =Ki;staboxw[2] =Kd;staboxw[3] =T;
 
-    cout<<endl<<"*******************"<<endl;
+////    Interval co = cutoff_bound(pol_coef,stabox);
+////    cout<<"cutoff freq: "<<co<<endl;
+////    IntervalVector w_dom(1,Interval(0,1));
+////    CtcExist fex(fw,mask,w_dom,0.01);
+////    vibes::beginDrawing();
+////    vibes::newFigure("real part pol");
+////    double wmin(0),wmax(1),freqeps(0.001);
+////    Interval freq(wmin,wmin+freqeps);
+////    IntervalVector cdraw(2);
+////    while(freq.ub()<wmax) {
+////        cdraw[0] = freq;
+////        staboxw[4] = freq;
+////        cdraw[1] = real_part.eval_vector(staboxw)[0];
+////        vibes::drawBox(cdraw,"red[red]");
+////        cdraw[1] = imag_part.eval_vector(staboxw)[0];
+////        vibes::drawBox(cdraw,"blue[blue]");
+////        freq+=Interval(freqeps);
+////    }
+////    vibes::endDrawing();
+////    return 0;
+
+//    cout<<endl<<"*******************"<<endl;
     pt_coefs.push_back(new Function("kp","ki","kd","T","(10537019111845495613241032739783*ki)/(63382530011411470074835160268800000*T)"));
     pt_coefs.push_back(new Function("kp","ki","kd","T","(6123437479178601467006569798917525860280205615571544779328*ki + 85984702646059087287357082558915403661686951915714248704*kp + 85984702646059087287357082558915403661686951915714248704*T*ki)/(517217245042237489695942121663229349471324453736965734400000*T)"));
     pt_coefs.push_back(new Function("kp","ki","kd","T","(85984702646059087287357082558915403661686951915714248704*kd + 241926240942475369556027638570784249909947691164891995634641*ki + 6123437479178601467006569798917525860280205615571544779328*kp + 6123437479178601467006569798917525860280205615571544779328*T*ki + 85984702646059087287357082558915403661686951915714248704*T*kp)/(517217245042237489695942121663229349471324453736965734400000*T)"));
@@ -721,62 +810,68 @@ int main() {
     pt_coefs.push_back(new Function("kp","ki","kd","T","(45973283667570099034270085511265165406205649806935123740852224*T + 517217245042237489695942121663229349471324453736965734400000)/(517217245042237489695942121663229349471324453736965734400000*T)"));
     pt_coefs.push_back(new Function("kp","ki","kd","T","1"));
 
-    univar_polynomial upol(pt_coefs);
-    pair<icomplex,Interval>* discs;1;
-    int nbroot = upol.get_roots(stabox,discs);
+//    univar_polynomial upol(pt_coefs);
+    var[0] = "kp";var[1] = "ki";var[2] = "kd";var[3] = "tf";
+    univar_polynomial cltf_pol("tf*kp*s^4+tf*s^3*ki+kd*s^4+(0.14399999999999999999)*s^3+s^2*ki+(5.9999999999999999995E-5)*tf*s^2*ki+(0.0036)*kp*s+(0.0036)*tf*s*ki+(33.75)*tf*s^6+(5.9999999999999999995E-5)*s*ki+(0.0023999999999999999998)*tf*s^5+(0.14399999999999999999)*tf*s^4+(0.0036)*ki+(5.9999999999999999995E-5)*kd*s^3+(0.0023999999999999999998)*s^4+(33.75)*s^5+(0.0036)*tf*kp*s^2+kp*s^3+(0.0036)*kd*s^2+(5.9999999999999999995E-5)*tf*kp*s^3+(5.9999999999999999995E-5)*kp*s^2"
+                      ,"s",var,4);
+//    pair<icomplex,Interval> discs[10];
+//    int nbroot = cltf_pol.get_roots(stabox,discs,6);
+//    for(int i=0;i<6;i++) {
+//        cout<<"center: "<<discs[i].first<<" radius: "<<discs[i].second<<endl;
+//    }
 //    return 0;
-    pol_coef.clear();
-    pol_coef.push_back(Function("kp","ki","kd","T","1"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(45973283667570099034270085511265165406205649806935123740852224*T + 517217245042237489695942121663229349471324453736965734400000)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(2043188925176215615677889430516454170045046702214280110789361664*T + 15324955408658888583583470271503091836187391221836021760000*kd + 15324955408658888583583470271503091836187391221836021760000*T*kp + 45973283667570099034270085511265165406205649806935123740852224)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(57735236822839624422708535872514782220796956928384476102262784*T + 1362171197650720615916740156171465615738890689107575439360000*kd + 15324955408658888583583470271503091836187391221836021760000*kp + 15324955408658888583583470271503091836187391221836021760000*T*ki + 1362171197650720615916740156171465615738890689107575439360000*T*kp + 2043188925176215615677889430516454170045046702214280110789361664)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(9527770640049606644179955720428217957821860374411197852680192*T + 60538905764470062617174426996447380495905857364817563757838336*kd + 15324955408658888583583470271503091836187391221836021760000*ki + 1362171197650720615916740156171465615738890689107575439360000*kp + 1362171197650720615916740156171465615738890689107575439360000*T*ki + 60538905764470062617174426996447380495905857364817563757838336*T*kp + 57735236822839624422708535872514782220796956928384476102262784)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(244937499167144058674511452919335327040734690096633144672256*T + 1709092917133541268429605152874087053884471459553034400822336*kd + 1362171197650720615916740156171465615738890689107575439360000*ki + 60538905764470062617174426996447380495905857364817563757838336*kp + 60538905764470062617174426996447380495905857364817563757838336*T*ki + 1709092917133541268429605152874087053884471459553034400822336*T*kp + 9527770640049606644179955720428217957821860374411197852680192)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(3439388105842363491494283302356616146467478076628569948160*T + 241926240942475369556027638570784249909947691164891995634641*kd + 60538905764470062617174426996447380495905857364817563757838336*ki + 1709092917133541268429605152874087053884471459553034400822336*kp + 1709092917133541268429605152874087053884471459553034400822336*T*ki + 241926240942475369556027638570784249909947691164891995634641*T*kp + 244937499167144058674511452919335327040734690096633144672256)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(6123437479178601467006569798917525860280205615571544779328*kd + 1709092917133541268429605152874087053884471459553034400822336*ki + 241926240942475369556027638570784249909947691164891995634641*kp + 241926240942475369556027638570784249909947691164891995634641*T*ki + 6123437479178601467006569798917525860280205615571544779328*T*kp + 3439388105842363491494283302356616146467478076628569948160)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(85984702646059087287357082558915403661686951915714248704*kd + 241926240942475369556027638570784249909947691164891995634641*ki + 6123437479178601467006569798917525860280205615571544779328*kp + 6123437479178601467006569798917525860280205615571544779328*T*ki + 85984702646059087287357082558915403661686951915714248704*T*kp)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(6123437479178601467006569798917525860280205615571544779328*ki + 85984702646059087287357082558915403661686951915714248704*kp + 85984702646059087287357082558915403661686951915714248704*T*ki)/(517217245042237489695942121663229349471324453736965734400000*T)"));
-    pol_coef.push_back(Function("kp","ki","kd","T","(10537019111845495613241032739783*ki)/(63382530011411470074835160268800000*T)"));
+//    pol_coef.clear();
+//    pol_coef.push_back(Function("kp","ki","kd","T","1"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(45973283667570099034270085511265165406205649806935123740852224*T + 517217245042237489695942121663229349471324453736965734400000)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(2043188925176215615677889430516454170045046702214280110789361664*T + 15324955408658888583583470271503091836187391221836021760000*kd + 15324955408658888583583470271503091836187391221836021760000*T*kp + 45973283667570099034270085511265165406205649806935123740852224)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(57735236822839624422708535872514782220796956928384476102262784*T + 1362171197650720615916740156171465615738890689107575439360000*kd + 15324955408658888583583470271503091836187391221836021760000*kp + 15324955408658888583583470271503091836187391221836021760000*T*ki + 1362171197650720615916740156171465615738890689107575439360000*T*kp + 2043188925176215615677889430516454170045046702214280110789361664)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(9527770640049606644179955720428217957821860374411197852680192*T + 60538905764470062617174426996447380495905857364817563757838336*kd + 15324955408658888583583470271503091836187391221836021760000*ki + 1362171197650720615916740156171465615738890689107575439360000*kp + 1362171197650720615916740156171465615738890689107575439360000*T*ki + 60538905764470062617174426996447380495905857364817563757838336*T*kp + 57735236822839624422708535872514782220796956928384476102262784)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(244937499167144058674511452919335327040734690096633144672256*T + 1709092917133541268429605152874087053884471459553034400822336*kd + 1362171197650720615916740156171465615738890689107575439360000*ki + 60538905764470062617174426996447380495905857364817563757838336*kp + 60538905764470062617174426996447380495905857364817563757838336*T*ki + 1709092917133541268429605152874087053884471459553034400822336*T*kp + 9527770640049606644179955720428217957821860374411197852680192)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(3439388105842363491494283302356616146467478076628569948160*T + 241926240942475369556027638570784249909947691164891995634641*kd + 60538905764470062617174426996447380495905857364817563757838336*ki + 1709092917133541268429605152874087053884471459553034400822336*kp + 1709092917133541268429605152874087053884471459553034400822336*T*ki + 241926240942475369556027638570784249909947691164891995634641*T*kp + 244937499167144058674511452919335327040734690096633144672256)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(6123437479178601467006569798917525860280205615571544779328*kd + 1709092917133541268429605152874087053884471459553034400822336*ki + 241926240942475369556027638570784249909947691164891995634641*kp + 241926240942475369556027638570784249909947691164891995634641*T*ki + 6123437479178601467006569798917525860280205615571544779328*T*kp + 3439388105842363491494283302356616146467478076628569948160)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(85984702646059087287357082558915403661686951915714248704*kd + 241926240942475369556027638570784249909947691164891995634641*ki + 6123437479178601467006569798917525860280205615571544779328*kp + 6123437479178601467006569798917525860280205615571544779328*T*ki + 85984702646059087287357082558915403661686951915714248704*T*kp)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(6123437479178601467006569798917525860280205615571544779328*ki + 85984702646059087287357082558915403661686951915714248704*kp + 85984702646059087287357082558915403661686951915714248704*T*ki)/(517217245042237489695942121663229349471324453736965734400000*T)"));
+//    pol_coef.push_back(Function("kp","ki","kd","T","(10537019111845495613241032739783*ki)/(63382530011411470074835160268800000*T)"));
 
-    IntervalMatrix coef_mat(1,11),cvec(11,1);
-//    icomplex c(Interval(- 0.84540181371938381285507169289191),Interval(0.34070063664340792059925292413312));
-    icomplex c(Interval(0.34837408242172199618777614744032),Interval(0.46222767016820064334679430164482));
-//    Interval pol_ceval(0);
-    icomplex cpow(Interval(1),Interval(0));
-    icomplex pol_eval(Interval(0),Interval(0));
-    for(unsigned i=0;i<pol_coef.size();i++) {
-        coef_mat[0][i] = pol_coef.at(i).eval_vector(stabox)[0];
-//        cout<<"polev "<<i<<" : "<<coef_mat[0][i]<<endl;
-//        cvec[i][0] = ibex::pow(Interval(c),Interval(pol_coef.size()-1-i));
-//        cout<<"cev "<<i<<" : "<<cvec[i][0]<<endl;
-//        cout<<"prod: "<<cvec[i][0]*coef_mat[0][i]<<endl;
-//        pol_ceval+=cvec[i][0]*coef_mat[0][i];
-        Interval pcoef = pol_coef.at(pol_coef.size()-1-i).eval_vector(stabox)[0];
-//        cout<<"pcoef "<<pol_coef.size()-1-i<<": "<<pcoef<<endl;
-        if(i!=0)
-            cpow = cpow*c;
-//        cout<<"cpow: "<<cpow<<endl;
-//        cout<<"cpow*pcoef: "<<cpow*pcoef<<endl;
-        pol_eval = pol_eval+cpow*pcoef;
-//        cout<<"pol_eval: "<<pol_eval<<endl<<endl;
+//    IntervalMatrix coef_mat(1,11),cvec(11,1);
+////    icomplex c(Interval(- 0.84540181371938381285507169289191),Interval(0.34070063664340792059925292413312));
+//    icomplex c(Interval(0.34837408242172199618777614744032),Interval(0.46222767016820064334679430164482));
+////    Interval pol_ceval(0);
+//    icomplex cpow(Interval(1),Interval(0));
+//    icomplex pol_eval(Interval(0),Interval(0));
+//    for(unsigned i=0;i<pol_coef.size();i++) {
+//        coef_mat[0][i] = pol_coef.at(i).eval_vector(stabox)[0];
+////        cout<<"polev "<<i<<" : "<<coef_mat[0][i]<<endl;
+////        cvec[i][0] = ibex::pow(Interval(c),Interval(pol_coef.size()-1-i));
+////        cout<<"cev "<<i<<" : "<<cvec[i][0]<<endl;
+////        cout<<"prod: "<<cvec[i][0]*coef_mat[0][i]<<endl;
+////        pol_ceval+=cvec[i][0]*coef_mat[0][i];
+//        Interval pcoef = pol_coef.at(pol_coef.size()-1-i).eval_vector(stabox)[0];
+////        cout<<"pcoef "<<pol_coef.size()-1-i<<": "<<pcoef<<endl;
+//        if(i!=0)
+//            cpow = cpow*c;
+////        cout<<"cpow: "<<cpow<<endl;
+////        cout<<"cpow*pcoef: "<<cpow*pcoef<<endl;
+//        pol_eval = pol_eval+cpow*pcoef;
+////        cout<<"pol_eval: "<<pol_eval<<endl<<endl;
 
-    }
-//real [21.3329, 21.7977]
+//    }
+////real [21.3329, 21.7977]
 
-//    IntervalMatrix pol_ceval = coef_mat*cvec;
+////    IntervalMatrix pol_ceval = coef_mat*cvec;
 
-    cout<<"pol_eval: "<<pol_eval<<"*i" <<endl;
-//    Interval R = ibex::pow(ibex::pow(Interval(2),19)*ibex::abs(pol_ceval),0.1);
-    icomplex alpha_den( Interval(685.41),Interval(- 256.32));
-    icomplex alphanu = pol_eval/alpha_den;
-    icomplex rnu = alphanu/coef_mat[0][0];
-    rnu = icomplex(rnu.real_part()*5,rnu.imag_part()*5);
-    Interval R = 5*rnu.abs();
-    cout<<"center: "<<c-rnu<<" ,radius: "<<R<<endl;
+//    cout<<"pol_eval: "<<pol_eval<<"*i" <<endl;
+////    Interval R = ibex::pow(ibex::pow(Interval(2),19)*ibex::abs(pol_ceval),0.1);
+//    icomplex alpha_den( Interval(685.41),Interval(- 256.32));
+//    icomplex alphanu = pol_eval/alpha_den;
+//    icomplex rnu = alphanu/coef_mat[0][0];
+//    rnu = icomplex(rnu.real_part()*5,rnu.imag_part()*5);
+//    Interval R = 5*rnu.abs();
+//    cout<<"center: "<<c-rnu<<" ,radius: "<<R<<endl;
 
 
-//    cout<<"function ok"<<endl;
-    return 0;
+////    cout<<"function ok"<<endl;
+//    return 0;
 
 //    staboxw[4] = w_dom[0];
 //    cout<<"w_dom: "<<w_dom<<endl;
@@ -799,30 +894,30 @@ int main() {
 
 //    costf2 b;
 //    Heap<heap_elem> heap(b);
-//    double freqeps=0.00001;
+//    double freqeps=0.000001;
 //    double umin(-3),umax(3);
 //    Interval freq(umin,umin+freqeps);
 //    IntervalVector box(5),bbox(4),boxmat(5);
 //    Interval bernres(-10000),cres;
 
-//    box[0] = Interval(6.86104);box[1]=Interval(0.0122183);box[2]=Interval(8.37996);box[3]=Interval(3.93941);
-//    boxmat[0] = Interval(7.953783690601573);boxmat[1]=Interval(0.078943640474045);boxmat[2]=Interval(2.863881179107744);boxmat[3]=Interval(2.263575234363492);
+//    box[0] = Interval(1.0485);box[1]=Interval(0.0018779);box[2]=Interval(9.49404);box[3]=Interval(3.29043);
+//    boxmat[0] = Interval(7.976669207558328);boxmat[1]=Interval(0.078327344800924);boxmat[2]=Interval(2.460756005845892);boxmat[3]=Interval(1.972776432462848);
 //    bbox[1] = Interval(-9.69235, -9.63094);bbox[2]=Interval(9.54305, 9.59969);bbox[3]=Interval(9.59853, 9.6546);
 //    IntervalVector berndraw(2),cdraw(2);
 //    vibes::beginDrawing();
-//    vibes::newFigure("Twz2 go");
+//    vibes::newFigure("Tw1z1 mat and go");
 //    while(freq.ub()<umax) {
-//        cdraw[0] = freq;
+//        cdraw[0] = freq*10;
 //        berndraw[0] = freq;
 //        box[4]=freq;
 //        boxmat[4]=freq;
-//        bbox[0]=ibex::pow(Interval(10),freq.mid());
+//        bbox[0]=ibex::pow(Interval(10),freq);
 ////        berndraw[1] = bernwfree.at(1).eval_bernstein(bbox)[0]*berncst.at(1).eval_bernstein(IntervalVector(1,bbox[0]))[0];
 
-//        cdraw[1] = Max12.eval_vector(box)[0];
+//        cdraw[1] = 20/ibex::log(10)*ibex::log(ibex::sqrt(Tw1z1u.eval_vector(box)[0]));
 //        vibes::drawBox(cdraw,"blue[blue]");
-//        cdraw[1] = Max12.eval_vector(boxmat)[0];
-//        vibes::drawBox(cdraw,"red[red]");
+////        cdraw[1] = 20/ibex::log(10)*ibex::log(ibex::sqrt(Tw1z1u.eval_vector(boxmat)[0]));
+////        vibes::drawBox(cdraw,"red[red]");
 ////        vibes::drawBox(berndraw,"red[red]");
 ////        heap.push(new heap_elem(NULL,bbox,bernres));
 //        freq+=Interval(freqeps);
@@ -858,15 +953,7 @@ int main() {
 
 //    Function Prob("kp","ki","w","((kp+w-2)^6+0.2)*ln(1+(kp+w)^2)+((ki+w-2)^6+0.2)*ln(1+(ki+w)^2)"  );
 
-    SetIntervalReg stab(IniboxK,0.1);
 
-    vibes::beginDrawing();
-    vibes::newFigure("stability");
-    stab.contract(*ctc_final,ctc_routh);
-    cout<<"contraction done"<<endl;
-    visit_leaves(stab);
-    vibes::endDrawing();
-    return 0;
 
 
     LargestFirst lf;
@@ -884,7 +971,7 @@ int main() {
     cost_uplo cu;
     Heap<list_elem> list(cu);
 
-    list_elem *elem = new list_elem(IniboxK, heap,IntervalVector(1,Interval(-1,1000000)));
+    list_elem *elem = new list_elem(IniboxK, heap,IntervalVector(1,Interval(-1,1000000)),false);
 //    list_elem *elem = new list_elem(Iniprob, tree,IntervalVector(1,Interval::ALL_REALS));
     list.push(elem);
 
@@ -902,6 +989,8 @@ int main() {
 //    sol[0] = 0.3998;sol[1] = 0.4806;sol[2] = -0.1952;
 //    cout<<"evaluation of matlab result: "<<Sum.eval_vector(sol)<<endl;
 //    return 0;
+    int nbeig(6);
+    pair<icomplex,Interval> eigenvalues[nbeig];
 
     bool lbfix(false);
     Timer::start();
@@ -914,7 +1003,7 @@ int main() {
         }
         cout<<"maxdiam: "<<elemtmp->box.max_diam()<<endl;
 //        cout<<" fmax of current element: "<<elemtmp->fmax<<endl;
-        if(elemtmp->fmax[0].lb()>lower_ub) { //better lower_ub may be computed since computation of the father, must check
+        if(elemtmp->fmax[0].lb()>lower_ub) { //better lower_ub computed since computation of the father, must check
             vol_rejected+= elemtmp->box.volume();
             cout<<"solution deletion,  "<<endl;
             cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
@@ -928,28 +1017,37 @@ int main() {
 //        cout<<"precision on w: "<<str.preclw<<endl;
         str.lower_ub = lower_ub;
         //******************** Routh contraction ***********************
-        IntervalVector inib = elemtmp->box;
-        ctc_final->contract(elemtmp->box);
-//        ctc_routh.contract(elemtmp->box);
-        if(elemtmp->box != inib) {
-            vol_rejected += inib.volume()-elemtmp->box.volume();
-            if(elemtmp->box.is_empty())
-                cout<<"routn deletion "<<endl;
-            else
-                cout<<"routh contract  "<<endl;
-            cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
+        if(!elemtmp->stable) // nothing to contract if the box is proved to be stable
+        {
+            IntervalVector inib = elemtmp->box;
+            ctc_final->contract(elemtmp->box);
+            //        ctc_routh.contract(elemtmp->box);
+            if(elemtmp->box != inib) {
+                vol_rejected += inib.volume()-elemtmp->box.volume();
+                if(elemtmp->box.is_empty())
+                    cout<<"routn deletion "<<endl;
+                else
+                    cout<<"routh contract  "<<endl;
+                cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
+                if(elemtmp->box.is_empty()) {
+                    delete elemtmp;
+                    continue;
+                }
+            }
+//            else { //contraction did nothing, check if the hole box is stable
+//                if(check_stability_routh(routh_func,elemtmp->box))
+//                    elemtmp->stable = true;
+//                else {
+//                    if(cltf_pol.get_roots(elemtmp->box,eigenvalues,nbeig) ==1)
+//                        elemtmp->stable = check_stability_root(eigenvalues,nbeig);
+//                    else
+//                        cout<<"error, eigen values not computed"<<endl;
+
+//                }
+//            }
         }
-        if(elemtmp->box.is_empty()) {
-            delete elemtmp;
-            continue;
-        }
 
-
-        // **************** compute (wmax,fmax) *******************
-//        Function g(w,Max12(elemtmp->box[0],elemtmp->box[1],elemtmp->box[2],w));
-//        Function g(w,Prob(elemtmp->box[0],elemtmp->box[1],w));
-//        str.f = &g;
-
+        //******************* search for a stable point in the box **************
         Vector midp(4);
         bool stab(true);
         for(unsigned j=0;j<1000;j++)
@@ -970,8 +1068,31 @@ int main() {
                 break;}
 
         }
-//        elemtmp->computable = stab;
-        if(elemtmp->computable)
+        //****************** try to remove box by enclosing the eigenvalues of A(k) ***************
+//        if(!stab) {
+//            bool box_unstab(false);
+//            if(cltf_pol.get_roots(elemtmp->box,eigenvalues,nbeig) ==1)
+//                box_unstab = check_unstability(eigenvalues,nbeig);
+//            else
+//                cout<<"error, eigen values not computed"<<endl;
+//            if(box_unstab) {
+//                vol_rejected+= elemtmp->box.volume();
+//                cout<<"poly root unstability  "<<endl;
+//                cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<upper_lb<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
+//                delete elemtmp;
+//                continue;
+//            }
+//        }
+
+        // **************** compute (wmax,fmax) *******************
+//        Function g(w,Max12(elemtmp->box[0],elemtmp->box[1],elemtmp->box[2],w));
+//        Function g(w,Prob(elemtmp->box[0],elemtmp->box[1],w));
+//        str.f = &g;
+
+
+//        if(elemtmp->box.max_diam()<0.5)
+//            elemtmp->computable = stab;
+//        if(elemtmp->computable)
             best_upper_bound_forall_w(&str,elemtmp,false,Vector(4));
         cout<<"res found for box "<<elemtmp->box<<" : "<<endl<<"        "<<elemtmp->fmax<<endl;
         if(elemtmp->fmax[0] == Interval::EMPTY_SET) { // maximum is guaranteed to be higher than the current lower_up for box elemtmp->box
@@ -1089,14 +1210,14 @@ int main() {
                 elemtmp->heap.pop();
             }
 
-            list.push(new list_elem(boxes.first,heap1,elemtmp->fmax));
-            list.push(new list_elem(boxes.second,heap2,elemtmp->fmax));
+            list.push(new list_elem(boxes.first,heap1,elemtmp->fmax,elemtmp->stable));
+            list.push(new list_elem(boxes.second,heap2,elemtmp->fmax,elemtmp->stable));
             delete elemtmp;
         }
         else{
             cout<<"minprec reached! "<<endl;
             cout<<"box: "<<elemtmp->box<<endl;
-            lbfix = true;
+//            lbfix = true;
             volout += elemtmp->box.volume();
             cout<<"volume treated: "<<(volout+vol_rejected)/IniboxK.volume()*100<<endl;
             //cout<<"loup : "<<lower_ub<<" get for point: "<<respoint<<" uplo: "<<elemtmp->fmax.lb()<< " volume rejected: "<<vol_rejected/IniboxK.volume()*100<<endl;
@@ -1116,6 +1237,8 @@ int main() {
 
 
 }
+
+
 /*
  * maximum: 2.16987for point: (0.470296 ; 0.468828 ; -0.426464)
  uplo: 1.75584

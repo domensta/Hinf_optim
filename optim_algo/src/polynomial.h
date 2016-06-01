@@ -1,7 +1,7 @@
 #ifndef POLYNOMIAL_H
 #define POLYNOMIAL_H
 
-#include "/home/bumquist/Tools/ibex/OUT/include/ibex/ibex.h"
+#include "/home/kiwi/Tools/ibex-lib-ibex-2.1.18/OUT/include/ibex/ibex.h"
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>

@@ -21,12 +21,26 @@ close all
 ssaug=ss(a1,b1,c1,d1);
 sysaug=ltisys(a1,b1,c1,d1);
 
+load('pond.mat', 'inv_W1');
+W1 = 1/inv_W1;
+load('pond.mat', 'inv_W2');
+W2 = 1/inv_W2;
+load('pond.mat', 'inv_W3');
+W3 = 1/inv_W3;
+s = tf('s');
+Ir = 40;
+ws = 0.06
+zs = 0.0005;
+L = -2.5;
+G = tf([1 2*ws*zs ws*ws],[Ir-L*L Ir*2*ws*zs Ir*ws*ws 0]);
+G = G/s;
+
 
 %% hinfstruct synthesis
 
 
 % define PID controller, 'P', 'PI', 'PD' also possible
- options = hinfstructOptions('RandomStart',1, 'Display', 'off');
+ options = hinfstructOptions('RandomStart',10, 'Display', 'off');
 C0pid = ltiblock.pid('namePID', 'PID') ; %
 %C0pid.Tf.Free=0;
 %C0pid.Tf.Value=1;
@@ -35,7 +49,7 @@ C0pid.Tf.Maximum=5;
 C0pid.Kp.Minimum=-10;
 C0pid.Ki.Minimum=-10;
 C0pid.Kd.Minimum=-10;
-C0pid.Kp.Maximum=10;
+C0pid.Kp.Maximum=10
 C0pid.Ki.Maximum=10;
 C0pid.Kd.Maximum=10;
 
@@ -69,10 +83,12 @@ sys=ss(a2,b2,c2,d2);
 % perfo Hinfini
 
 trace_hinf(sys,cor,inv_W2,inv_W3,inv_W1)
-s = tf('s');
+
 pid =4.93953 + 0.0490246/s +7.16762*s/(1+s); % not remove
-pid =-8.4 +7.4/s +9.1*s/(1+1.1*s);
-trace_hinf(sys,Cpid,inv_W2,inv_W3,inv_W1)
+0.975822 ; 0.000988356 ; 9.41187 ; 3.78795
+pid =1.0485 + 0.0018779/s +9.49405*s/(1+3.29043*s);
+trace_hinf(sys,pid,inv_W2,inv_W3,inv_W1);
+trace_hinf(sys,Cpid,inv_W2,inv_W3,inv_W1);
 % marges de stabilit�
 figure
 nichols(sys(1,3)*pid)

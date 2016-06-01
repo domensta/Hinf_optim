@@ -1,18 +1,24 @@
 #variables
-kp,ki,kd
+kp,ki,kd,tf
 #define G
-1/(s*s+1.4*s+1)
+exp(-0.5*s)/(s*s*(0.3578+0.138)+s*1.8)
+#define Gp
+(1-0.5/2*s)/(1+0.5/2*s)*1/(s*s*(0.3578+0.138)+s*1.8)
 #define K
-kp+ki/s+kd*s/(1+s)
+kp+ki/s+kd*s/(1+tf*s)
 #define W1
-(s+100)/(100*s+1)
+(0.5*s +0.5*0.92)/(s+ 0.0046)
 #define W2
-(10*s+1)/(s+10)
+0.01
+#define W3
+1/0.1
 #constraint Twz1
 W1/(1+G*K)
 #constraint Twz2
-K/(1+G*K)
+W2*K/(1+G*K)
+#constraint Twz3
+W3*G/(1+G*K)
 #routh
-1/(1+G*K)
+1/(1+Gp*K)
 
 
