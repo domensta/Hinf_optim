@@ -230,6 +230,7 @@ bool syscst2minibex(char * filename) {
 //    }
     out<<endl<<"end";
     out.close();
+    cout<<"denom: "<<denftbf<<endl;
     return true;
 }
 
