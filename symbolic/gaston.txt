@@ -1,0 +1,4 @@
+#variables
+p1,p2,p3
+#constraint gast
+(s+2*p1)/(s*(s+p2)*(s+p3)*(s+10))

@@ -1,0 +1,3 @@
+function f(kp,ki,kd,tf)
+return(tf,1+4*tf,(1+4*tf)^(-1)*(4+6.725*kd+26.9*kd*tf-6.725*ki*tf^2+16*tf+26.9*kp*tf^2),((180.9025)*kp*ki*tf^3+26.9*kp+180.9025*kp^2*tf^2-26.9*ki*tf+180.9025*kp*kd*tf-45.225625*kp*ki*tf^2+45.225625*kp*kd+107.6*kp*tf-6.725*ki+45.225625*kd*ki*tf-45.225625*ki^2*tf^3+180.9025*kd*ki*tf^2)*(4+6.725*kd+26.9*kd*tf-6.725*ki*tf^2+16*tf+26.9*kp*tf^2)^(-1),(6.725)*ki)
+end

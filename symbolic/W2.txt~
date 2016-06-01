@@ -1,0 +1,3 @@
+function f(kp,ki,kd,u)
+ return((100+exp(ln(10)*2*u))^(-1)*(1+100*exp(ln(10)*2*u)));
+end

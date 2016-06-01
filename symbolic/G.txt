@@ -1,0 +1,3 @@
+function f(kp,ki,kd,tf,u)
+ return((w^2+w^4*tf^2)^(-1)*((kd*w^2-ki+w^2*tf*kp)^2+(w*kp+w*ki*tf)^2));
+end
